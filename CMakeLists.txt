@@ -58,7 +58,7 @@ target_include_directories(stb_image INTERFACE include)
 find_package(OpenGL REQUIRED)
 
 # ------------------------------
-# Main executable - all source files under src/
+# Main executable
 # ------------------------------
 add_executable(${PROJECT_NAME}
     # Entry point
@@ -72,11 +72,15 @@ add_executable(${PROJECT_NAME}
     # Platform
     src/platform/GlfwWindow.cpp
 
-    # Rendering (Interfaces & Core Logic)
+    # Rendering
     src/rendering/opengl/OpenGLRenderer.cpp
     src/rendering/opengl/OpenGLMesh.cpp
+    src/rendering/opengl/OpenGLInstancedMesh.cpp
     src/rendering/opengl/OpenGLShader.cpp
     src/rendering/opengl/OpenGLTexture.cpp
+
+    # World & DS&A Systems
+    src/world/Town.cpp
 
     # Application
     src/app/Engine.cpp
@@ -99,54 +103,70 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 # ------------------------------
 # Make project version available in code
 # ------------------------------
-# Respecting user instruction: No automatic version bumping via 'chore'
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     COZY_TOWN_GL_VERSION="${PROJECT_VERSION}"
 )
 
 # ------------------------------
-# Embed shaders (basic.vert / basic.frag)
+# Shared Directory Variables
+# ------------------------------
+set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders)
+set(TEXTURE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/assets/textures)
+set(CMAKE_UTIL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+
+# ------------------------------
+# Embed shaders
 # ------------------------------
 set(EMBEDDED_SHADERS_HEADER ${CMAKE_BINARY_DIR}/shaders_embedded.h)
 
 add_custom_command(
     OUTPUT ${EMBEDDED_SHADERS_HEADER}
     COMMAND ${CMAKE_COMMAND}
-        -D INPUT_VERT=${CMAKE_CURRENT_SOURCE_DIR}/basic.vert
-        -D INPUT_FRAG=${CMAKE_CURRENT_SOURCE_DIR}/basic.frag
+        -D INPUT_VERT=${SHADER_DIR}/basic.vert
+        -D INPUT_FRAG=${SHADER_DIR}/basic.frag
+        -D INPUT_INSTANCED_VERT=${SHADER_DIR}/instanced.vert
         -D OUTPUT_HEADER=${EMBEDDED_SHADERS_HEADER}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/embed_shaders.cmake
+        -P ${CMAKE_UTIL_DIR}/embed_shaders.cmake
     DEPENDS
-        ${CMAKE_CURRENT_SOURCE_DIR}/basic.vert
-        ${CMAKE_CURRENT_SOURCE_DIR}/basic.frag
-        ${CMAKE_CURRENT_SOURCE_DIR}/embed_shaders.cmake
-    COMMENT "Embedding shaders into C++ header"
+        ${SHADER_DIR}/basic.vert
+        ${SHADER_DIR}/basic.frag
+        ${SHADER_DIR}/instanced.vert
+        ${CMAKE_UTIL_DIR}/embed_shaders.cmake
+    COMMENT "Embedding shaders from assets/shaders into C++ header"
 )
 
 add_custom_target(embed_shaders DEPENDS ${EMBEDDED_SHADERS_HEADER})
 add_dependencies(${PROJECT_NAME} embed_shaders)
 
 # ------------------------------
-# Embed placeholder texture
+# Embed multiple textures (Pluralized System)
 # ------------------------------
-set(EMBEDDED_TEXTURE_HEADER ${CMAKE_BINARY_DIR}/embedded_texture.h)
-set(EMBEDDED_TEXTURE_CPP ${CMAKE_BINARY_DIR}/embedded_texture.cpp)
+set(EMBEDDED_TEX_HEADER ${CMAKE_BINARY_DIR}/embedded_textures.h)
+set(EMBEDDED_TEX_CPP ${CMAKE_BINARY_DIR}/embedded_textures.cpp)
 
-add_custom_command(
-    OUTPUT ${EMBEDDED_TEXTURE_HEADER} ${EMBEDDED_TEXTURE_CPP}
-    COMMAND ${CMAKE_COMMAND}
-        -D INPUT_TEXTURE=${CMAKE_CURRENT_SOURCE_DIR}/placeholder.jpg
-        -D OUTPUT_HEADER=${EMBEDDED_TEXTURE_HEADER}
-        -D OUTPUT_CPP=${EMBEDDED_TEXTURE_CPP}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/embed_texture.cmake
-    DEPENDS
-        ${CMAKE_CURRENT_SOURCE_DIR}/placeholder.jpg
-        ${CMAKE_CURRENT_SOURCE_DIR}/embed_texture.cmake
-    COMMENT "Embedding placeholder texture"
+# Define the list of textures to be baked into the executable
+set(TEXTURE_FILES 
+    ${TEXTURE_DIR}/placeholder.jpg
+    # Add more textures here as you create them:
+    # ${TEXTURE_DIR}/grass.png
+    # ${TEXTURE_DIR}/dirt.png
 )
 
-add_custom_target(embed_texture DEPENDS ${EMBEDDED_TEXTURE_HEADER} ${EMBEDDED_TEXTURE_CPP})
-add_dependencies(${PROJECT_NAME} embed_texture)
+add_custom_command(
+    OUTPUT ${EMBEDDED_TEX_HEADER} ${EMBEDDED_TEX_CPP}
+    COMMAND ${CMAKE_COMMAND}
+        -D "INPUT_TEXTURES=${TEXTURE_FILES}"
+        -D "OUTPUT_HEADER=${EMBEDDED_TEX_HEADER}"
+        -D "OUTPUT_CPP=${EMBEDDED_TEX_CPP}"
+        -P ${CMAKE_UTIL_DIR}/embed_textures.cmake
+    DEPENDS
+        ${TEXTURE_FILES}
+        ${CMAKE_UTIL_DIR}/embed_textures.cmake
+    COMMENT "Embedding multiple textures from assets/textures into a global registry"
+)
 
-# Link the generated CPP file for the texture
-target_sources(${PROJECT_NAME} PRIVATE ${EMBEDDED_TEXTURE_CPP})
+add_custom_target(embed_textures DEPENDS ${EMBEDDED_TEX_HEADER} ${EMBEDDED_TEX_CPP})
+add_dependencies(${PROJECT_NAME} embed_textures)
+
+# Link the generated CPP file containing the hex data
+target_sources(${PROJECT_NAME} PRIVATE ${EMBEDDED_TEX_CPP})

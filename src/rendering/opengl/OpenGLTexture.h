@@ -1,14 +1,16 @@
 #pragma once
 
-#include "core/graphics/IGpuResource.h"
+#include "core/graphics/IGpuResource.h" // Ensure this defines ITexture
 #include <string>
+#include <cstdint>
 
 namespace cozy::rendering
 {
     class OpenGLTexture final : public core::ITexture
     {
     public:
-        explicit OpenGLTexture(const std::string &filename = "placeholder.jpg");
+        // Default to "placeholder" as a key for our registry
+        explicit OpenGLTexture(const std::string &nameOrPath = "placeholder");
         ~OpenGLTexture() override;
 
         [[nodiscard]] uint32_t GetRendererID() const noexcept override { return m_id; }
@@ -22,7 +24,10 @@ namespace cozy::rendering
         int m_width{0}, m_height{0};
 
         uint32_t loadFromFile(const std::string &path);
-        uint32_t loadFromMemory();
+        uint32_t loadFromRegistry(const std::string &name);
         uint32_t createWhiteFallback();
+
+        // Internal helper to avoid DRY (Don't Repeat Yourself) for GL setup
+        uint32_t createTexture(unsigned char *data, int width, int height, int channels);
     };
 }

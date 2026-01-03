@@ -10,7 +10,7 @@ namespace cozy::core
         float nearPlane{0.1f};
         float farPlane{1000.0f};
         float moveSpeed{8.0f}; // Smooth movement in large town
-        float mouseSensitivity{0.1f};
+        float mouseSensitivity{0.5f};
         float pitchClamp{89.0f}; // Prevent flip
 
         // Animal Crossing-style top-down/isometric preset
