@@ -6,6 +6,10 @@ project(cozy_town_gl
     DESCRIPTION "Cozy Animal Crossing-inspired town engine in C++ and OpenGL"
 )
 
+# Generate compile_commands.json for VS Code IntelliSense
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# C++17 with strict standard compliance
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -30,10 +34,10 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/glfw/glfw.git
     GIT_TAG 3.4
 )
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_DOCS      OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES  OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL         OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(glfw)
 
 # ------------------------------
@@ -49,20 +53,33 @@ add_library(stb_image INTERFACE)
 target_include_directories(stb_image INTERFACE include)
 
 # ------------------------------
-# Main executable
+# Find OpenGL
+# ------------------------------
+find_package(OpenGL REQUIRED)
+
+# ------------------------------
+# Main executable - all source files under src/
 # ------------------------------
 add_executable(${PROJECT_NAME}
+    # Entry point
     main.cpp
-    Camera.cpp
-    Shader.cpp
-    Texture.cpp
-    Mesh.cpp
-    InputSystem.cpp
-    Time.cpp
-    # Future sources go here:
-    # Town.cpp
-    # Acre.cpp
-    # NPC.cpp
+
+    # Core systems
+    src/core/time/TimeSystem.cpp
+    src/core/input/InputSystem.cpp
+    src/core/camera/FreeCamera.cpp
+
+    # Platform
+    src/platform/GlfwWindow.cpp
+
+    # Rendering (Interfaces & Core Logic)
+    src/rendering/opengl/OpenGLRenderer.cpp
+    src/rendering/opengl/OpenGLMesh.cpp
+    src/rendering/opengl/OpenGLShader.cpp
+    src/rendering/opengl/OpenGLTexture.cpp
+
+    # Application
+    src/app/Engine.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -73,11 +90,18 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     OpenGL::GL
 )
 
-find_package(OpenGL REQUIRED)
-
 target_include_directories(${PROJECT_NAME} PRIVATE
     include
+    src
     ${CMAKE_BINARY_DIR}
+)
+
+# ------------------------------
+# Make project version available in code
+# ------------------------------
+# Respecting user instruction: No automatic version bumping via 'chore'
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    COZY_TOWN_GL_VERSION="${PROJECT_VERSION}"
 )
 
 # ------------------------------
@@ -124,11 +148,5 @@ add_custom_command(
 add_custom_target(embed_texture DEPENDS ${EMBEDDED_TEXTURE_HEADER} ${EMBEDDED_TEXTURE_CPP})
 add_dependencies(${PROJECT_NAME} embed_texture)
 
+# Link the generated CPP file for the texture
 target_sources(${PROJECT_NAME} PRIVATE ${EMBEDDED_TEXTURE_CPP})
-
-# ------------------------------
-# Optional: Make version available in code
-# ------------------------------
-target_compile_definitions(${PROJECT_NAME} PRIVATE
-    COZY_TOWN_GL_VERSION="${PROJECT_VERSION}"
-)

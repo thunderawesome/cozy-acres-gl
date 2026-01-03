@@ -6,15 +6,18 @@ in vec3 Normal;
 in vec2 TexCoord;
 in vec3 VertexColor;
 
-uniform sampler2D diffuseTexture;
-uniform vec3 lightPos;
-uniform vec3 lightColor;
-uniform vec3 viewPos;
+// Updated to match OpenGLRenderer and Engine naming
+uniform sampler2D u_DiffuseTexture;
+uniform vec3 u_ViewPos;
 
 void main()
 {
+    // --- Hardcoded Lighting (Temporary for testing) ---
+    vec3 lightPos   = vec3(5.0, 10.0, 5.0);
+    vec3 lightColor = vec3(1.0, 1.0, 1.0);
+
     // Ambient
-    float ambientStrength = 0.1;
+    float ambientStrength = 0.2;
     vec3 ambient = ambientStrength * lightColor;
 
     // Diffuse
@@ -24,18 +27,19 @@ void main()
     vec3 diffuse = diff * lightColor;
 
     // Specular (Phong)
-    float specularStrength = 0.8;  // How shiny the material is
-    int shininess = 32;            // Higher = tighter highlight
-    vec3 viewDir = normalize(viewPos - FragPos);
+    float specularStrength = 0.5;
+    int shininess = 32;
+    vec3 viewDir = normalize(u_ViewPos - FragPos);
     vec3 reflectDir = reflect(-lightDir, norm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
     vec3 specular = specularStrength * spec * lightColor;
 
     // Texture
-    vec3 textureColor = texture(diffuseTexture, TexCoord).rgb;
+    vec3 textureColor = texture(u_DiffuseTexture, TexCoord).rgb;
 
-    // Combine with vertex color tint
-    vec3 result = (ambient + diffuse + specular) * textureColor * VertexColor;
+    // Combine lighting with texture and vertex color tint
+    vec3 lightingResult = (ambient + diffuse + specular);
+    vec3 finalColor = lightingResult * textureColor * VertexColor;
 
-    FragColor = vec4(result, 1.0);
+    FragColor = vec4(finalColor, 1.0);
 }
