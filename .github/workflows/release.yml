@@ -1,0 +1,127 @@
+name: Build and Release (Windows, macOS, Linux)
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_NAME: cozy_town_gl
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Linux dependencies (Ubuntu only, cached)
+        if: matrix.os == 'ubuntu-latest'
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config libwayland-dev wayland-protocols libx11-xcb-dev libxkbcommon-dev
+          version: 1.0
+
+      - name: Cache dependencies (macOS only)
+        if: matrix.os == 'macos-latest'
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: deps-macos-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: deps-macos-
+
+      - name: Install CMake and Ninja (macOS only)
+        if: matrix.os == 'macos-latest'
+        run: brew install cmake ninja
+
+      - name: Setup MSVC (Windows only)
+        if: matrix.os == 'windows-latest'
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Configure CMake
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Determine executable path and name
+        id: artifact
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            echo "path=build/Release/${{ env.PROJECT_NAME }}.exe" >> $GITHUB_OUTPUT
+            echo "name=cozy-town-gl-windows.exe" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            echo "path=build/${{ env.PROJECT_NAME }}" >> $GITHUB_OUTPUT
+            echo "name=cozy-town-gl-linux" >> $GITHUB_OUTPUT
+          else
+            echo "path=build/${{ env.PROJECT_NAME }}" >> $GITHUB_OUTPUT
+            echo "name=cozy-town-gl-macos" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload executable (shaders embedded)
+        uses: actions/upload-artifact@v4
+        with:
+          name: executable-${{ matrix.os }}
+          path: ${{ steps.artifact.outputs.path }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create per-platform ZIPs (single executable, shaders embedded)
+        run: |
+          mkdir -p release-zips
+          # Windows
+          cp artifacts/executable-windows-latest/${{ env.PROJECT_NAME }}.exe release-zips/cozy-town-gl-windows.exe || true
+          cd release-zips && zip cozy-town-gl-windows.zip cozy-town-gl-windows.exe && cd -
+          # Linux
+          cp artifacts/executable-ubuntu-latest/${{ env.PROJECT_NAME }} release-zips/cozy-town-gl-linux || true
+          cd release-zips && zip cozy-town-gl-linux.zip cozy-town-gl-linux && cd -
+          # macOS
+          cp artifacts/executable-macos-latest/${{ env.PROJECT_NAME }} release-zips/cozy-town-gl-macos || true
+          cd release-zips && zip cozy-town-gl-macos.zip cozy-town-gl-macos && cd -
+
+      - name: Semantic Version Tagging (only on qualifying commits)
+        id: tag
+        uses: paulhatch/semantic-version@v5.4.0
+        with:
+          major_pattern: "(BREAKING CHANGE|breaking)"
+          minor_pattern: "feat:"
+          version_format: "v${major}.${minor}.${patch}"
+          namespace: ""
+          bump_each_commit: false
+          search_commit_body: true
+
+      - name: Create Release with platform ZIPs (only if new version)
+        if: steps.tag.outputs.version_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.version_tag }}
+          name: Cozy Town GL ${{ steps.tag.outputs.version_tag }}
+          generate_release_notes: true
+          files: |
+            release-zips/cozy-town-gl-windows.zip
+            release-zips/cozy-town-gl-linux.zip
+            release-zips/cozy-town-gl-macos.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
