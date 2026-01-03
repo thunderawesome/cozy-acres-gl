@@ -1,9 +1,10 @@
 #include "Town.h"
 #include <glm/gtc/matrix_transform.hpp>
-#include <stack> // Required for DFS
-#include <queue> // Required for BFS
+#include <stack>
+#include <queue>
 #include <array>
-#include <cmath> // For std::floor
+#include <cmath>
+#include <algorithm>
 
 namespace cozy::world
 {
@@ -28,106 +29,161 @@ namespace cozy::world
         int x = static_cast<int>(std::floor(world_pos.x));
         int z = static_cast<int>(std::floor(world_pos.z));
 
-        // Clamp to prevent out-of-bounds access
-        x = std::max(0, std::min(x, (WIDTH * 16) - 1));
-        z = std::max(0, std::min(z, (HEIGHT * 16) - 1));
+        x = std::clamp(x, 0, (WIDTH * 16) - 1);
+        z = std::clamp(z, 0, (HEIGHT * 16) - 1);
 
-        glm::ivec2 acre_idx(x / 16, z / 16);
-        glm::ivec2 local_tile(x % 16, z % 16);
-        return {acre_idx, local_tile};
+        return {{x / 16, z / 16}, {x % 16, z % 16}};
     }
 
-    void Town::Generate(uint64_t seed)
+    void Town::Generate(uint64_t seed, const TownConfig &config)
     {
         std::mt19937_64 rng(seed);
+        GenContext ctx{rng, config};
 
-        // Step 1: Initialize with Grass
+        // Step 1: Initialize/Reset Town
         for (auto &col : m_Acres)
             for (auto &acre : col)
                 for (auto &row : acre.tiles)
                     for (auto &tile : row)
+                    {
                         tile.type = TileType::GRASS;
+                        tile.elevation = 0;
+                    }
 
-        // Step 2: Carve Features
-        CarveRiver(rng);
-        CarvePond(rng);
+        // Step 2: Run Pipeline
+        GenerateCliffs(ctx);
+        CarveRiver(ctx);
+        CarvePond(ctx);
     }
 
-    void Town::CarveRiver(std::mt19937_64 &rng)
+    void Town::GenerateCliffs(GenContext &ctx)
     {
-        std::uniform_int_distribution<int> dist(0, (WIDTH * 16) - 1);
-        int currentX = dist(rng);
+        float transition_start = 1.0f - ctx.config.cliffSmoothness;
+        std::uniform_int_distribution<int> row_dist(ctx.config.minPlateauRow, ctx.config.maxPlateauRow);
+
+        std::array<int, WIDTH> column_targets;
+        for (int ax = 0; ax < WIDTH; ++ax)
+            column_targets[ax] = (row_dist(ctx.rng) + 1) * 16;
+
+        std::vector<int> boundary_line(WIDTH * 16);
+        for (int x = 0; x < WIDTH * 16; ++x)
+        {
+            int current_acre = x / 16;
+            int next_acre = std::min(current_acre + 1, WIDTH - 1);
+            float t = (x % 16) / 16.0f;
+
+            float transition = 0.0f;
+            if (ctx.config.cliffSmoothness > 0.0f && t >= transition_start)
+            {
+                float local_t = (t - transition_start) / ctx.config.cliffSmoothness;
+                // Smoothstep for rounded corners
+                transition = local_t * local_t * (3.0f - 2.0f * local_t);
+            }
+
+            float bz = (1.0f - transition) * column_targets[current_acre] +
+                       (transition * column_targets[next_acre]);
+            boundary_line[x] = static_cast<int>(std::round(bz));
+        }
+
+        // Pass 1: Set Elevations
+        for (int x = 0; x < WIDTH * 16; ++x)
+        {
+            for (int z = 0; z < HEIGHT * 16; ++z)
+            {
+                auto [a, l] = WorldToTile(glm::vec3(x, 0, z));
+                m_Acres[a.x][a.y].tiles[l.y][l.x].elevation = (z < boundary_line[x]) ? 1 : 0;
+            }
+        }
+
+        // Pass 2: 4-Way Boundary Tagging (Handles Left/Top edges)
+        for (int x = 0; x < WIDTH * 16; ++x)
+        {
+            for (int z = 0; z < HEIGHT * 16; ++z)
+            {
+                auto [a, l] = WorldToTile(glm::vec3(x, 0, z));
+                auto &tile = m_Acres[a.x][a.y].tiles[l.y][l.x];
+                if (tile.elevation == 0)
+                    continue;
+
+                const int dx[] = {1, -1, 0, 0}, dz[] = {0, 0, 1, -1};
+                for (int i = 0; i < 4; ++i)
+                {
+                    int nx = x + dx[i], nz = z + dz[i];
+                    if (nx >= 0 && nx < WIDTH * 16 && nz >= 0 && nz < HEIGHT * 16)
+                    {
+                        auto [aN, lN] = WorldToTile(glm::vec3(nx, 0, nz));
+                        if (m_Acres[aN.x][aN.y].tiles[lN.y][lN.x].elevation < tile.elevation)
+                        {
+                            tile.type = TileType::CLIFF;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void Town::CarveRiver(GenContext &ctx)
+    {
+        std::uniform_int_distribution<int> xDist(0, (WIDTH * 16) - 1);
+        int currentX = xDist(ctx.rng);
         int currentZ = 0;
+
+        int halfWidth = ctx.config.riverWidth / 2;
 
         while (currentZ < (HEIGHT * 16))
         {
-            // Thicken the river (3-tile width)
-            for (int dx = -1; dx <= 1; ++dx)
+            for (int dx = -halfWidth; dx <= (ctx.config.riverWidth - halfWidth - 1); ++dx)
             {
-                int targetX = currentX + dx;
-                if (targetX >= 0 && targetX < WIDTH * 16)
+                int tx = currentX + dx;
+                if (tx >= 0 && tx < WIDTH * 16)
                 {
-                    auto [acre, local] = WorldToTile(glm::vec3(targetX, 0, currentZ));
-                    m_Acres[acre.x][acre.y].tiles[local.y][local.x].type = TileType::WATER;
+                    auto [a, l] = WorldToTile(glm::vec3(tx, 0, currentZ));
+                    m_Acres[a.x][a.y].tiles[l.y][l.x].type = TileType::WATER;
                 }
             }
 
-            std::uniform_int_distribution<int> moveDist(0, 10);
-            int move = moveDist(rng);
-
-            if (move < 2 && currentX > 1)
+            std::uniform_int_distribution<int> roll(0, 100);
+            int m = roll(ctx.rng);
+            if (m < ctx.config.riverMeanderChance / 2 && currentX > 1)
                 currentX--;
-            else if (move > 8 && currentX < (WIDTH * 16) - 2)
+            else if (m > 100 - (ctx.config.riverMeanderChance / 2) && currentX < (WIDTH * 16) - 2)
                 currentX++;
             else
                 currentZ++;
         }
     }
 
-    void Town::CarvePond(std::mt19937_64 &rng)
+    void Town::CarvePond(GenContext &ctx)
     {
         std::uniform_int_distribution<int> xDist(5, (WIDTH * 16) - 6);
         std::uniform_int_distribution<int> zDist(5, (HEIGHT * 16) - 6);
 
-        glm::ivec2 seedPos(xDist(rng), zDist(rng));
-
-        // Explicitly using std::queue for BFS
         std::queue<glm::ivec2> q;
-        q.push(seedPos);
+        q.push({xDist(ctx.rng), zDist(ctx.rng)});
 
-        int maxTiles = 25;
         int carved = 0;
-
-        while (!q.empty() && carved < maxTiles)
+        while (!q.empty() && carved < ctx.config.maxPondSize)
         {
             glm::ivec2 curr = q.front();
             q.pop();
+            auto [a, l] = WorldToTile(glm::vec3(curr.x, 0, curr.y));
 
-            auto [acre, local] = WorldToTile(glm::vec3(curr.x, 0, curr.y));
-
-            // Skip if already processed
-            if (m_Acres[acre.x][acre.y].tiles[local.y][local.x].type == TileType::WATER)
+            if (m_Acres[a.x][a.y].tiles[l.y][l.x].type == TileType::WATER)
                 continue;
 
-            m_Acres[acre.x][acre.y].tiles[local.y][local.x].type = TileType::WATER;
+            m_Acres[a.x][a.y].tiles[l.y][l.x].type = TileType::WATER;
             carved++;
 
-            // Use simple offsets for neighbors to avoid "type name not allowed" errors
-            const int dx[] = {1, -1, 0, 0};
-            const int dz[] = {0, 0, 1, -1};
-
+            const int dx[] = {1, -1, 0, 0}, dz[] = {0, 0, 1, -1};
             for (int i = 0; i < 4; ++i)
             {
-                int nx = curr.x + dx[i];
-                int nz = curr.y + dz[i];
-
+                int nx = curr.x + dx[i], nz = curr.y + dz[i];
                 if (nx >= 0 && nx < WIDTH * 16 && nz >= 0 && nz < HEIGHT * 16)
                 {
-                    std::uniform_int_distribution<int> chance(0, 10);
-                    if (chance(rng) > 3)
-                    {
-                        q.push(glm::ivec2(nx, nz));
-                    }
+                    std::uniform_int_distribution<int> chance(0, 100);
+                    if (chance(ctx.rng) < ctx.config.pondSpreadChance)
+                        q.push({nx, nz});
                 }
             }
         }
@@ -136,33 +192,49 @@ namespace cozy::world
     std::vector<rendering::TileInstance> Town::GenerateRenderData() const
     {
         std::vector<rendering::TileInstance> instances;
-        instances.reserve(WIDTH * HEIGHT * 16 * 16);
+        instances.reserve(WIDTH * HEIGHT * Acre::SIZE * Acre::SIZE * 2);
 
         for (int ax = 0; ax < WIDTH; ++ax)
         {
             for (int ay = 0; ay < HEIGHT; ++ay)
             {
-                for (int ly = 0; ly < 16; ++ly)
+                for (int ly = 0; ly < Acre::SIZE; ++ly)
                 {
-                    for (int lx = 0; lx < 16; ++lx)
+                    for (int lx = 0; lx < Acre::SIZE; ++lx)
                     {
                         const Tile &tile = m_Acres[ax][ay].tiles[ly][lx];
-                        rendering::TileInstance inst;
+                        float worldX = static_cast<float>(ax * Acre::SIZE + lx);
+                        float worldZ = static_cast<float>(ay * Acre::SIZE + ly);
 
-                        float worldX = static_cast<float>(ax * 16 + lx);
-                        float worldZ = static_cast<float>(ay * 16 + ly);
+                        for (int y = 0; y <= tile.elevation; ++y)
+                        {
+                            rendering::TileInstance inst;
+                            inst.modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(worldX, (float)y, worldZ));
 
-                        inst.modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(worldX, (float)tile.elevation, worldZ));
-
-                        if (tile.type == TileType::WATER)
-                            inst.color = {0.1f, 0.4f, 0.8f};
-                        else if (tile.type == TileType::GRASS)
-                            inst.color = {0.3f, 0.6f, 0.2f};
-                        else
-                            inst.color = {0.5f, 0.5f, 0.5f};
-
-                        inst.padding = 0.0f;
-                        instances.push_back(inst);
+                            if (y < tile.elevation)
+                            {
+                                inst.color = {0.45f, 0.35f, 0.25f}; // Dirt filler
+                            }
+                            else
+                            {
+                                if (tile.type == TileType::WATER)
+                                {
+                                    float depthShade = 1.0f - (y * 0.1f);
+                                    inst.color = {0.1f * depthShade, 0.4f * depthShade, 0.8f * depthShade};
+                                }
+                                else if (tile.type == TileType::CLIFF)
+                                {
+                                    inst.color = {0.5f, 0.45f, 0.4f};
+                                }
+                                else
+                                {
+                                    float elevationLight = 0.5f + (y * 0.15f);
+                                    inst.color = {0.3f * elevationLight, 0.6f * elevationLight, 0.2f * elevationLight};
+                                }
+                            }
+                            inst.padding = 0.0f;
+                            instances.push_back(inst);
+                        }
                     }
                 }
             }

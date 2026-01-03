@@ -30,19 +30,31 @@ namespace cozy::app
     {
         m_renderer->Initialize(m_window->GetNativeHandle());
 
-        // 1. Camera setup (Setters now work)
+        // 1. Camera setup
         m_camera->SetPosition(glm::vec3(40.0f, 60.0f, 120.0f));
         m_camera->SetRotation(-90.0f, -45.0f);
 
-        // 2. Town setup
+        // 2. Town setup with Random Seed
         m_town = std::make_unique<world::Town>();
-        m_town->Generate(1337);
+
+        // --- RANDOM SEED ASSIGNMENT ---
+        std::random_device rd;
+        uint64_t randomSeed = static_cast<uint64_t>(rd()) << 32 | rd();
+
+        // --- CONFIGURATION ---
+        world::TownConfig config;
+        config.cliffSmoothness = 0.2f;  // Let's make it a bit smoother
+        config.riverWidth = 4;          // A slightly wider river
+        config.riverMeanderChance = 25; // More curves
+
+        m_town->Generate(randomSeed, config);
 
         // 3. Mesh setup
         const float *cubeData = rendering::primitives::CubeVertices;
         size_t floatCount = sizeof(rendering::primitives::CubeVertices) / sizeof(float);
         m_townMesh = std::make_unique<rendering::OpenGLInstancedMesh>(cubeData, floatCount);
 
+        // Sync Town data to the Mesh
         auto instances = m_town->GenerateRenderData();
         m_townMesh->UpdateInstances(instances);
 
