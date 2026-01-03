@@ -13,6 +13,7 @@ namespace cozy::platform
         GLFWwindow *m_handle{nullptr};
         WindowConfig m_config;
         glm::ivec2 m_framebufferSize{0, 0};
+        glm::vec2 m_scrollOffset{0.0f, 0.0f};
 
     public:
         explicit GlfwWindow(const WindowConfig &config = WindowConfig::Default());
@@ -28,6 +29,7 @@ namespace cozy::platform
 
         [[nodiscard]] bool IsKeyPressed(int key) const noexcept override;
         [[nodiscard]] glm::vec2 GetCursorPosition() const noexcept override;
+        [[nodiscard]] glm::vec2 GetMouseScroll() const noexcept override;
 
         [[nodiscard]] glm::ivec2 GetFramebufferSize() const noexcept override;
         [[nodiscard]] glm::ivec2 GetWindowSize() const noexcept override;

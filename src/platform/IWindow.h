@@ -34,6 +34,7 @@ namespace cozy::platform
         // Abstraction Layer for Input
         [[nodiscard]] virtual bool IsKeyPressed(int key) const noexcept = 0;
         [[nodiscard]] virtual glm::vec2 GetCursorPosition() const noexcept = 0;
+        [[nodiscard]] virtual glm::vec2 GetMouseScroll() const noexcept = 0;
 
         // Size and Metrics
         [[nodiscard]] virtual glm::ivec2 GetFramebufferSize() const noexcept = 0;

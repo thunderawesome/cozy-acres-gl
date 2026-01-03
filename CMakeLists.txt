@@ -64,6 +64,9 @@ add_executable(${PROJECT_NAME}
     # Entry point
     main.cpp
 
+    # Utils
+    src/core/util/FileSystem.cpp
+
     # Core systems
     src/core/time/TimeSystem.cpp
     src/core/input/InputSystem.cpp
@@ -125,12 +128,14 @@ add_custom_command(
         -D INPUT_VERT=${SHADER_DIR}/basic.vert
         -D INPUT_FRAG=${SHADER_DIR}/basic.frag
         -D INPUT_INSTANCED_VERT=${SHADER_DIR}/instanced.vert
+        -D INPUT_INSTANCED_FRAG=${SHADER_DIR}/instanced.frag 
         -D OUTPUT_HEADER=${EMBEDDED_SHADERS_HEADER}
         -P ${CMAKE_UTIL_DIR}/embed_shaders.cmake
     DEPENDS
         ${SHADER_DIR}/basic.vert
         ${SHADER_DIR}/basic.frag
         ${SHADER_DIR}/instanced.vert
+        ${SHADER_DIR}/instanced.frag                      
         ${CMAKE_UTIL_DIR}/embed_shaders.cmake
     COMMENT "Embedding shaders from assets/shaders into C++ header"
 )

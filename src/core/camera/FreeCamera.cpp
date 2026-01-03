@@ -4,6 +4,29 @@
 namespace cozy::core
 {
 
+    void FreeCamera::SetPosition(const glm::vec3 &position) noexcept
+    {
+        m_position = position;
+    }
+
+    void FreeCamera::SetRotation(float yaw, float pitch) noexcept
+    {
+        m_yaw = yaw;
+        m_pitch = pitch;
+        updateVectors(); // Recalculate Front, Right, and Up based on new angles
+    }
+
+    void FreeCamera::LookAt(const glm::vec3 &target) noexcept
+    {
+        glm::vec3 direction = glm::normalize(target - m_position);
+
+        // Convert direction vector back to Euler angles
+        m_pitch = glm::degrees(asin(direction.y));
+        m_yaw = glm::degrees(atan2(direction.z, direction.x));
+
+        updateVectors();
+    }
+
     void FreeCamera::updateVectors() noexcept
     {
         glm::vec3 front;
@@ -35,9 +58,15 @@ namespace cozy::core
         updateVectors();
     }
 
-    void FreeCamera::ProcessKeyboard(glm::vec3 direction, float deltaTime) noexcept
+    void FreeCamera::ProcessKeyboard(glm::vec3 direction, float deltaTime, bool isSprinting) noexcept
     {
-        float velocity = m_config.moveSpeed * deltaTime;
+        float currentSpeed = m_config.moveSpeed;
+        if (isSprinting)
+        {
+            currentSpeed *= m_config.boostMultiplier;
+        }
+
+        float velocity = currentSpeed * deltaTime;
         m_position += direction.x * m_right * velocity;
         m_position += direction.y * m_worldUp * velocity;
         m_position += direction.z * m_front * velocity;

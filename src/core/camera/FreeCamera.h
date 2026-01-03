@@ -43,8 +43,12 @@ namespace cozy::core
         glm::vec3 GetFront() const noexcept override { return m_front; }
         glm::vec3 GetUp() const noexcept override { return m_up; }
 
+        void SetPosition(const glm::vec3 &position) noexcept override;
+        void SetRotation(float yaw, float pitch) noexcept override;
+        void LookAt(const glm::vec3 &target) noexcept override;
+
         void ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch = true) noexcept override;
-        void ProcessKeyboard(glm::vec3 direction, float deltaTime) noexcept override;
+        void ProcessKeyboard(glm::vec3 direction, float deltaTime, bool isSprinting = false) noexcept override;
 
         void SetConfig(const CameraConfig &config) noexcept override { m_config = config; }
         const CameraConfig &GetConfig() const noexcept override { return m_config; }

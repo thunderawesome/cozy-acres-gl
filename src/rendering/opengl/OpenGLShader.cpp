@@ -7,7 +7,7 @@
 namespace cozy::rendering
 {
     OpenGLShader::OpenGLShader()
-        : OpenGLShader(embedded_cube_vert, embedded_cube_frag) {}
+        : OpenGLShader(embedded_instanced_vert, embedded_instanced_frag) {}
 
     OpenGLShader::OpenGLShader(const char *vertexSource, const char *fragmentSource)
     {

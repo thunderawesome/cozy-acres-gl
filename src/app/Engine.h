@@ -1,24 +1,25 @@
 #pragma once
-
 #include <memory>
+#include <vector>
+#include "world/Town.h"
 
-// Forward declarations
 namespace cozy::platform
 {
     class IWindow;
-}
-namespace cozy::rendering
-{
-    class IRenderer;
-    class OpenGLMesh;    // Add this
-    class OpenGLShader;  // Add this
-    class OpenGLTexture; // Add this
 }
 namespace cozy::core
 {
     class ICamera;
     class IInputSystem;
     class TimeSystem;
+}
+namespace cozy::rendering
+{
+    class IRenderer;
+    class OpenGLMesh;
+    class OpenGLShader;
+    class OpenGLTexture;
+    class OpenGLInstancedMesh;
 }
 
 namespace cozy::app
@@ -32,15 +33,17 @@ namespace cozy::app
         std::unique_ptr<core::IInputSystem> m_input;
         std::unique_ptr<core::TimeSystem> m_time;
 
-        // Concrete test objects
-        std::unique_ptr<rendering::OpenGLMesh> m_testMesh;
-        std::unique_ptr<rendering::OpenGLShader> m_testShader;
+        // Town System
+        std::unique_ptr<world::Town> m_town;
+        std::unique_ptr<rendering::OpenGLInstancedMesh> m_townMesh;
+        std::unique_ptr<rendering::OpenGLShader> m_instancedShader;
+
+        // Test objects
         std::unique_ptr<rendering::OpenGLTexture> m_testTexture;
 
     public:
         Engine();
-        ~Engine(); // Remember: Explicitly defined in .cpp to handle unique_ptr deletion
-
+        ~Engine();
         void Run();
     };
 }

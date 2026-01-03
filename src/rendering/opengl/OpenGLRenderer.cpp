@@ -1,4 +1,5 @@
 #include "OpenGLRenderer.h"
+#include "rendering/opengl/OpenGLInstancedMesh.h"
 #include "core/graphics/IGpuResource.h"
 #include "core/camera/ICamera.h"
 #include <glad/glad.h>
@@ -14,14 +15,12 @@ namespace cozy::rendering
             return;
         }
 
-        // 1. Enable Depth Testing
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LEQUAL);
 
-        // 2. Explicitly set Face Culling to match CCW PrimitiveData
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
-        glFrontFace(GL_CCW); // This ensures our CCW vertices are "Front"
+        glFrontFace(GL_CCW);
 
         std::cout << "[OpenGLRenderer] Context initialized (CCW Winding)" << std::endl;
     }
@@ -39,19 +38,29 @@ namespace cozy::rendering
         const core::ICamera &camera)
     {
         shader.Bind();
-
-        // Ensure these strings match your basic.vert/frag exactly
         shader.SetMat4("u_Model", modelMatrix);
         shader.SetMat4("u_View", camera.GetViewMatrix());
 
-        // Calculate aspect ratio (usually we'd want to store this or get from window)
-        float aspect = 1280.0f / 720.0f;
+        float aspect = 1280.0f / 720.0f; // TODO: Pull from window config
         shader.SetMat4("u_Projection", camera.GetProjectionMatrix(aspect));
-        shader.SetVec3("u_ViewPos", camera.GetPosition());
 
         glBindVertexArray(mesh.GetRendererID());
-        glDrawArrays(GL_TRIANGLES, 0, mesh.GetVertexCount());
+        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)mesh.GetVertexCount());
         glBindVertexArray(0);
+    }
+
+    void OpenGLRenderer::DrawInstanced(
+        const OpenGLInstancedMesh &mesh,
+        const core::IShader &shader,
+        const core::ICamera &camera)
+    {
+        shader.Bind();
+
+        float aspect = 1280.0f / 720.0f;
+        shader.SetMat4("u_View", camera.GetViewMatrix());
+        shader.SetMat4("u_Projection", camera.GetProjectionMatrix(aspect));
+
+        mesh.Draw();
     }
 
     void OpenGLRenderer::EndFrame() { /* SwapBuffers handled in Engine */ }

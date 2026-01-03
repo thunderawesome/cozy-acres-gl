@@ -33,9 +33,13 @@ namespace cozy::core
         if (window.IsKeyPressed(m_config.keyDown))
             direction.y -= 1.0f;
 
+        // Detect Sprinting from config
+        bool isSprinting = window.IsKeyPressed(m_config.keySprint);
+
         if (glm::length(direction) > 0.01f)
         {
-            camera.ProcessKeyboard(glm::normalize(direction), deltaTime);
+            // Pass the sprint state to the camera
+            camera.ProcessKeyboard(glm::normalize(direction), deltaTime, isSprinting);
         }
 
         if (window.IsKeyPressed(m_config.keyExit))
@@ -65,6 +69,21 @@ namespace cozy::core
         {
             camera.ProcessMouseMovement(xoffset * m_config.mouseSensitivity,
                                         yoffset * m_config.mouseSensitivity);
+        }
+
+        float scrollY = window.GetMouseScroll().y;
+        if (std::abs(scrollY) > 0.01f)
+        {
+            auto config = camera.GetConfig();
+            config.fovDegrees -= scrollY * m_config.scrollSensitivity;
+
+            // Clamp FOV so we don't flip the image or zoom into atoms
+            if (config.fovDegrees < 1.0f)
+                config.fovDegrees = 1.0f;
+            if (config.fovDegrees > 90.0f)
+                config.fovDegrees = 90.0f;
+
+            camera.SetConfig(config);
         }
     }
 

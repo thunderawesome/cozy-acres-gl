@@ -33,7 +33,17 @@ namespace cozy::platform
         glfwGetFramebufferSize(m_handle, &fbWidth, &fbHeight);
         m_framebufferSize = {fbWidth, fbHeight};
 
+        // 1. Set the User Pointer so the callback can find this object
         glfwSetWindowUserPointer(m_handle, this);
+
+        // 2. Set the Scroll Callback
+        glfwSetScrollCallback(m_handle, [](GLFWwindow *window, double xoffset, double yoffset)
+                              {
+            auto* self = static_cast<GlfwWindow*>(glfwGetWindowUserPointer(window));
+            if (self) {
+                // Accumulate scroll in case multiple events happen in one frame
+                self->m_scrollOffset += glm::vec2(static_cast<float>(xoffset), static_cast<float>(yoffset));
+            } });
     }
 
     GlfwWindow::~GlfwWindow()
@@ -64,6 +74,12 @@ namespace cozy::platform
         return {static_cast<float>(x), static_cast<float>(y)};
     }
 
+    // 3. Implement the missing getter
+    glm::vec2 GlfwWindow::GetMouseScroll() const noexcept
+    {
+        return m_scrollOffset;
+    }
+
     glm::ivec2 GlfwWindow::GetFramebufferSize() const noexcept { return m_framebufferSize; }
 
     glm::ivec2 GlfwWindow::GetWindowSize() const noexcept
@@ -77,7 +93,11 @@ namespace cozy::platform
 
     void GlfwWindow::PollEvents() noexcept
     {
+        // 4. Reset the scroll delta BEFORE polling new events
+        m_scrollOffset = glm::vec2(0.0f);
+
         glfwPollEvents();
+
         int fbWidth, fbHeight;
         glfwGetFramebufferSize(m_handle, &fbWidth, &fbHeight);
         m_framebufferSize = {fbWidth, fbHeight};

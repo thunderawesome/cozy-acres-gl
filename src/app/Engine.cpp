@@ -1,32 +1,66 @@
 #include "app/Engine.h"
 
-// Platform & Interfaces
+#include "core/util/FileSystem.h"
+
+// Platform & Rendering
 #include "platform/GlfwWindow.h"
 #include "rendering/opengl/OpenGLRenderer.h"
+#include "rendering/opengl/OpenGLInstancedMesh.h"
+#include "rendering/opengl/OpenGLShader.h"
+#include "rendering/opengl/OpenGLTexture.h"
+#include "rendering/opengl/PrimitiveData.h"
 
-// Core
+// Core & World
 #include "core/camera/FreeCamera.h"
 #include "core/camera/CameraConfig.h"
 #include "core/input/InputSystem.h"
 #include "core/time/TimeSystem.h"
-
-// Rendering Implementations - MUST INCLUDE THESE TO FIX ERRORS
-#include "rendering/opengl/OpenGLMesh.h"
-#include "rendering/opengl/OpenGLShader.h"
-#include "rendering/opengl/OpenGLTexture.h"
+#include "world/Town.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace cozy::app
 {
     Engine::Engine()
-        : m_window(std::make_unique<platform::GlfwWindow>(platform::WindowConfig::Default())), m_renderer(std::make_unique<rendering::OpenGLRenderer>()), m_camera(std::make_unique<core::FreeCamera>(core::CameraConfig::FreeFlyPreset())), m_input(std::make_unique<core::InputSystem>(core::InputConfig::Default())), m_time(std::make_unique<core::TimeSystem>())
+        : m_window(std::make_unique<platform::GlfwWindow>(platform::WindowConfig::Default())),
+          m_renderer(std::make_unique<rendering::OpenGLRenderer>()),
+          m_camera(std::make_unique<core::FreeCamera>(core::CameraConfig::FreeFlyPreset())),
+          m_input(std::make_unique<core::InputSystem>(core::InputConfig::Default())),
+          m_time(std::make_unique<core::TimeSystem>())
     {
         m_renderer->Initialize(m_window->GetNativeHandle());
 
-        // Now the compiler knows what these types are!
-        m_testMesh = std::make_unique<rendering::OpenGLMesh>();
-        m_testShader = std::make_unique<rendering::OpenGLShader>();
+        // 1. Camera setup (Setters now work)
+        m_camera->SetPosition(glm::vec3(40.0f, 60.0f, 120.0f));
+        m_camera->SetRotation(-90.0f, -45.0f);
+
+        // 2. Town setup
+        m_town = std::make_unique<world::Town>();
+        m_town->Generate(1337);
+
+        // 3. Mesh setup
+        const float *cubeData = rendering::primitives::CubeVertices;
+        size_t floatCount = sizeof(rendering::primitives::CubeVertices) / sizeof(float);
+        m_townMesh = std::make_unique<rendering::OpenGLInstancedMesh>(cubeData, floatCount);
+
+        auto instances = m_town->GenerateRenderData();
+        m_townMesh->UpdateInstances(instances);
+
+        // 4. Shader setup (Using FileSystem)
+        using cozy::core::util::FileSystem;
+        std::string vSrc = FileSystem::ReadFile("assets/shaders/instanced.vert");
+        std::string fSrc = FileSystem::ReadFile("assets/shaders/instanced.frag");
+
+        if (!vSrc.empty() && !fSrc.empty())
+        {
+            m_instancedShader = std::make_unique<rendering::OpenGLShader>(vSrc.c_str(), fSrc.c_str());
+        }
+        else
+        {
+            // Fallback to embedded if files are missing
+            m_instancedShader = std::make_unique<rendering::OpenGLShader>();
+        }
+
         m_testTexture = std::make_unique<rendering::OpenGLTexture>("placeholder.jpg");
     }
 
@@ -39,18 +73,16 @@ namespace cozy::app
             m_time->Update();
             float deltaTime = m_time->GetDeltaTime();
 
+            // Update Input (Camera/Movement)
             m_input->Update(*m_window, *m_camera, deltaTime);
 
             m_renderer->BeginFrame();
 
-            if (m_testMesh && m_testShader && m_testTexture)
+            // Render the Town
+            if (m_townMesh && m_instancedShader)
             {
                 m_renderer->BindTexture(*m_testTexture, 0);
-
-                glm::mat4 model = glm::mat4(1.0f);
-                model = glm::rotate(model, (float)m_time->GetTotalTimeHighPrecision(), glm::vec3(0.5f, 1.0f, 0.0f));
-
-                m_renderer->DrawMesh(*m_testMesh, *m_testShader, model, *m_camera);
+                m_renderer->DrawInstanced(*m_townMesh, *m_instancedShader, *m_camera);
             }
 
             m_renderer->EndFrame();

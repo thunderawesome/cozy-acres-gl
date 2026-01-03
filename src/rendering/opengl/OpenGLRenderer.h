@@ -4,6 +4,9 @@
 
 namespace cozy::rendering
 {
+    // Forward declaration to avoid circular includes
+    class OpenGLInstancedMesh;
+
     class OpenGLRenderer final : public IRenderer
     {
     public:
@@ -20,6 +23,12 @@ namespace cozy::rendering
             const core::IMesh &mesh,
             const core::IShader &shader,
             const glm::mat4 &modelMatrix,
+            const core::ICamera &camera) override;
+
+        // Interface implementation for rendering the town
+        void DrawInstanced(
+            const OpenGLInstancedMesh &mesh,
+            const core::IShader &shader,
             const core::ICamera &camera) override;
 
         void BindTexture(const core::ITexture &texture, uint32_t slot = 0) override;
