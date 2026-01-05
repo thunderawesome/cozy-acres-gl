@@ -70,6 +70,7 @@ namespace cozy::world
         Town() = default;
 
         void Generate(uint64_t seed, const TownConfig &config = TownConfig());
+        void DebugDump() const;
 
         // Bridge to Renderer
         std::vector<rendering::TileInstance> GenerateRenderData() const;

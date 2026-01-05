@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 
 namespace cozy::world
 {
@@ -240,5 +241,55 @@ namespace cozy::world
             }
         }
         return instances;
+    }
+
+    void Town::DebugDump() const
+    {
+        // 1. Print Horizontal Header (Row Numbers)
+        // Shift right to account for the vertical header space
+        std::cout << "    ";
+        for (int ax = 0; ax < WIDTH; ++ax)
+        {
+            // Center the number over the 16 tiles of the acre
+            std::cout << " Acre " << (ax + 1) << "        ";
+        }
+        std::cout << "\n";
+
+        // 2. Iterate through every world row (Z axis)
+        for (int z = 0; z < HEIGHT * 16; ++z)
+        {
+            // Print Vertical Header (Column Letters A, B, C...)
+            // We only print the letter at the start of a new Acre row
+            if (z % 16 == 0)
+            {
+                char acreLetter = 'A' + (z / 16);
+                std::cout << acreLetter << " | ";
+            }
+            else
+            {
+                std::cout << "  | ";
+            }
+
+            // 3. Print the Tiles in this row
+            for (int x = 0; x < WIDTH * 16; ++x)
+            {
+                auto [a, l] = WorldToTile(glm::vec3(x, 0, z));
+                const auto &tile = m_Acres[a.x][a.y].tiles[l.y][l.x];
+
+                // Print TileType as an int (0=Empty, 1=Grass, 3=Water, 7=Cliff, etc.)
+                std::cout << static_cast<int>(tile.type);
+
+                // Optional: Add a separator between acres for clarity
+                if ((x + 1) % 16 == 0)
+                    std::cout << " ";
+            }
+            std::cout << "\n";
+
+            // Optional: Add a horizontal line between acre rows
+            if ((z + 1) % 16 == 0)
+            {
+                std::cout << "  " << std::string((WIDTH * 17) + 4, '-') << "\n";
+            }
+        }
     }
 }
