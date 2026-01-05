@@ -1,6 +1,6 @@
 #include "app/Engine.h"
 
-#include "core/util/FileSystem.h"
+#include "shaders_embedded.h"
 
 // Platform & Rendering
 #include "platform/GlfwWindow.h"
@@ -48,6 +48,7 @@ namespace cozy::app
         config.riverMeanderChance = 25; // More curves
 
         m_town->Generate(randomSeed, config);
+        m_town->DebugDump();
 
         // 3. Mesh setup
         const float *cubeData = rendering::primitives::CubeVertices;
@@ -58,18 +59,15 @@ namespace cozy::app
         auto instances = m_town->GenerateRenderData();
         m_townMesh->UpdateInstances(instances);
 
-        // 4. Shader setup (Using FileSystem)
-        using cozy::core::util::FileSystem;
-        std::string vSrc = FileSystem::ReadFile("assets/shaders/instanced.vert");
-        std::string fSrc = FileSystem::ReadFile("assets/shaders/instanced.frag");
-
-        if (!vSrc.empty() && !fSrc.empty())
+        // 4. Shader setup
+        if (embedded_instanced_vert && embedded_instanced_frag)
         {
-            m_instancedShader = std::make_unique<rendering::OpenGLShader>(vSrc.c_str(), fSrc.c_str());
+            m_instancedShader = std::make_unique<rendering::OpenGLShader>(
+                embedded_instanced_vert,
+                embedded_instanced_frag);
         }
         else
         {
-            // Fallback to embedded if files are missing
             m_instancedShader = std::make_unique<rendering::OpenGLShader>();
         }
 
