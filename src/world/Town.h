@@ -13,8 +13,11 @@ namespace cozy::world
     {
         // Cliff Logic
         float cliffSmoothness = 0.15f; // 0.0 (sharp) to 1.0 (smooth)
-        int minPlateauRow = 1;         // Usually Row B
-        int maxPlateauRow = 3;         // Usually Row D
+        int minPlateauRow = 2;         // Usually Row C
+        int maxPlateauRow = 4;         // Usually Row E
+
+        int minHighPlateauRowOffset = 1; // Min rows inward from mid plateau edge
+        int maxHighPlateauRowOffset = 2; // Max rows inward (smaller = smaller high plateau)
 
         // River Logic
         int riverWidth = 3;

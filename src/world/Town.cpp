@@ -54,52 +54,171 @@ namespace cozy::world
         // Step 2: Run Pipeline
         GenerateCliffs(ctx);
         CarveRiver(ctx);
-        CarvePond(ctx);
+        // CarvePond(ctx);
     }
 
     void Town::GenerateCliffs(GenContext &ctx)
     {
-        float transition_start = 1.0f - ctx.config.cliffSmoothness;
-        std::uniform_int_distribution<int> row_dist(ctx.config.minPlateauRow, ctx.config.maxPlateauRow);
+        const int CONNECTION_POINT = 12; // Fixed connection point within each acre
 
-        std::array<int, WIDTH> column_targets;
+        // === Mid Plateau (Level 1) Boundary ===
+        std::uniform_int_distribution<int> mid_row_dist(ctx.config.minPlateauRow, ctx.config.maxPlateauRow);
+
+        // Generate per-acre targets
+        std::array<int, WIDTH> mid_column_targets;
         for (int ax = 0; ax < WIDTH; ++ax)
-            column_targets[ax] = (row_dist(ctx.rng) + 1) * 16;
-
-        std::vector<int> boundary_line(WIDTH * 16);
-        for (int x = 0; x < WIDTH * 16; ++x)
         {
-            int current_acre = x / 16;
-            int next_acre = std::min(current_acre + 1, WIDTH - 1);
-            float t = (x % 16) / 16.0f;
-
-            float transition = 0.0f;
-            if (ctx.config.cliffSmoothness > 0.0f && t >= transition_start)
-            {
-                float local_t = (t - transition_start) / ctx.config.cliffSmoothness;
-                // Smoothstep for rounded corners
-                transition = local_t * local_t * (3.0f - 2.0f * local_t);
-            }
-
-            float bz = (1.0f - transition) * column_targets[current_acre] +
-                       (transition * column_targets[next_acre]);
-            boundary_line[x] = static_cast<int>(std::round(bz));
+            mid_column_targets[ax] = (mid_row_dist(ctx.rng) + 1) * Acre::SIZE;
         }
 
-        // Pass 1: Set Elevations
-        for (int x = 0; x < WIDTH * 16; ++x)
+        // Build boundary line with step transitions at z=12
+        std::vector<int> mid_boundary_line(WIDTH * Acre::SIZE);
+        for (int x = 0; x < WIDTH * Acre::SIZE; ++x)
         {
-            for (int z = 0; z < HEIGHT * 16; ++z)
+            int current_acre = x / Acre::SIZE;
+            int next_acre = std::min(current_acre + 1, WIDTH - 1);
+            int local_x = x % Acre::SIZE;
+
+            // At x=12: transition to next acre's target
+            if (local_x < CONNECTION_POINT)
+            {
+                mid_boundary_line[x] = mid_column_targets[current_acre];
+            }
+            else if (local_x == CONNECTION_POINT)
+            {
+                // Transition point - could average or pick one
+                mid_boundary_line[x] = (current_acre == WIDTH - 1) ? mid_column_targets[current_acre] : mid_column_targets[next_acre];
+            }
+            else
+            {
+                mid_boundary_line[x] = (current_acre == WIDTH - 1) ? mid_column_targets[current_acre] : mid_column_targets[next_acre];
+            }
+        }
+
+        // === High Plateau (Level 2) Boundary ===
+        std::uniform_int_distribution<int> high_row_dist(
+            ctx.config.minHighPlateauRowOffset,
+            ctx.config.maxHighPlateauRowOffset);
+
+        std::array<int, WIDTH> high_column_targets;
+        for (int ax = 0; ax < WIDTH; ++ax)
+        {
+            int row = high_row_dist(ctx.rng);
+            int candidate = (row + 1) * Acre::SIZE;
+
+            // Strictly enforce: high plateau must start at least one full acre behind the mid plateau
+            int max_allowed = mid_column_targets[ax] - Acre::SIZE;
+            high_column_targets[ax] = std::min(candidate, max_allowed);
+            high_column_targets[ax] = std::max(high_column_targets[ax], Acre::SIZE);
+        }
+
+        std::vector<int> high_boundary_line(WIDTH * Acre::SIZE);
+        for (int x = 0; x < WIDTH * Acre::SIZE; ++x)
+        {
+            int current_acre = x / Acre::SIZE;
+            int next_acre = std::min(current_acre + 1, WIDTH - 1);
+            int local_x = x % Acre::SIZE;
+
+            if (local_x < CONNECTION_POINT)
+            {
+                high_boundary_line[x] = high_column_targets[current_acre];
+            }
+            else if (local_x == CONNECTION_POINT)
+            {
+                high_boundary_line[x] = (current_acre == WIDTH - 1) ? high_column_targets[current_acre] : high_column_targets[next_acre];
+            }
+            else
+            {
+                high_boundary_line[x] = (current_acre == WIDTH - 1) ? high_column_targets[current_acre] : high_column_targets[next_acre];
+            }
+
+            // Clamp to prevent overlap
+            int max_safe = mid_column_targets[current_acre] - Acre::SIZE;
+            if (current_acre + 1 < WIDTH)
+                max_safe = std::min(max_safe, mid_column_targets[next_acre] - Acre::SIZE);
+
+            high_boundary_line[x] = std::min(high_boundary_line[x], max_safe);
+            high_boundary_line[x] = std::max(high_boundary_line[x], 0);
+        }
+
+        // === Pass 1: Set Elevations with Z-axis snapping ===
+        for (int x = 0; x < WIDTH * Acre::SIZE; ++x)
+        {
+            for (int z = 0; z < HEIGHT * Acre::SIZE; ++z)
             {
                 auto [a, l] = WorldToTile(glm::vec3(x, 0, z));
-                m_Acres[a.x][a.y].tiles[l.y][l.x].elevation = (z < boundary_line[x]) ? 1 : 0;
+                auto &tile = m_Acres[a.x][a.y].tiles[l.y][l.x];
+
+                int local_z = z % Acre::SIZE;
+
+                // Determine base elevation from boundary lines
+                int base_elevation;
+                if (z < high_boundary_line[x])
+                    base_elevation = 2;
+                else if (z < mid_boundary_line[x])
+                    base_elevation = 1;
+                else
+                    base_elevation = 0;
+
+                // Apply Z-axis snapping: cliffs should only transition at z=12
+                // Check if we're near a Z boundary between acres
+                int current_z_acre = z / Acre::SIZE;
+                int next_z_acre = std::min(current_z_acre + 1, HEIGHT - 1);
+
+                if (local_z == CONNECTION_POINT && current_z_acre < HEIGHT - 1)
+                {
+                    // At the connection point, allow the transition
+                    tile.elevation = base_elevation;
+                }
+                else if (local_z < CONNECTION_POINT)
+                {
+                    // Before connection point: check if we should snap to current acre's elevation
+                    int check_z = current_z_acre * Acre::SIZE + CONNECTION_POINT;
+                    if (check_z < HEIGHT * Acre::SIZE)
+                    {
+                        int snap_elevation;
+                        if (check_z < high_boundary_line[x])
+                            snap_elevation = 2;
+                        else if (check_z < mid_boundary_line[x])
+                            snap_elevation = 1;
+                        else
+                            snap_elevation = 0;
+
+                        tile.elevation = snap_elevation;
+                    }
+                    else
+                    {
+                        tile.elevation = base_elevation;
+                    }
+                }
+                else
+                {
+                    // After connection point: check next acre's elevation
+                    int check_z = next_z_acre * Acre::SIZE + CONNECTION_POINT;
+                    if (check_z < HEIGHT * Acre::SIZE)
+                    {
+                        int snap_elevation;
+                        if (check_z < high_boundary_line[x])
+                            snap_elevation = 2;
+                        else if (check_z < mid_boundary_line[x])
+                            snap_elevation = 1;
+                        else
+                            snap_elevation = 0;
+
+                        tile.elevation = snap_elevation;
+                    }
+                    else
+                    {
+                        tile.elevation = base_elevation;
+                    }
+                }
             }
         }
 
-        // Pass 2: 4-Way Boundary Tagging (Handles Left/Top edges)
-        for (int x = 0; x < WIDTH * 16; ++x)
+        // === Pass 2: Cliff Tagging ===
+        for (int x = 0; x < WIDTH * Acre::SIZE; ++x)
         {
-            for (int z = 0; z < HEIGHT * 16; ++z)
+            for (int z = 0; z < HEIGHT * Acre::SIZE; ++z)
             {
                 auto [a, l] = WorldToTile(glm::vec3(x, 0, z));
                 auto &tile = m_Acres[a.x][a.y].tiles[l.y][l.x];
@@ -110,10 +229,11 @@ namespace cozy::world
                 for (int i = 0; i < 4; ++i)
                 {
                     int nx = x + dx[i], nz = z + dz[i];
-                    if (nx >= 0 && nx < WIDTH * 16 && nz >= 0 && nz < HEIGHT * 16)
+                    if (nx >= 0 && nx < WIDTH * Acre::SIZE && nz >= 0 && nz < HEIGHT * Acre::SIZE)
                     {
                         auto [aN, lN] = WorldToTile(glm::vec3(nx, 0, nz));
-                        if (m_Acres[aN.x][aN.y].tiles[lN.y][lN.x].elevation < tile.elevation)
+                        int neighbor_elev = m_Acres[aN.x][aN.y].tiles[lN.y][lN.x].elevation;
+                        if (neighbor_elev < tile.elevation)
                         {
                             tile.type = TileType::CLIFF;
                             break;
@@ -126,32 +246,62 @@ namespace cozy::world
 
     void Town::CarveRiver(GenContext &ctx)
     {
-        std::uniform_int_distribution<int> xDist(0, (WIDTH * 16) - 1);
-        int currentX = xDist(ctx.rng);
-        int currentZ = 0;
+        const int CONNECTION_POINT = 3; // Transition row within each acre
 
-        int halfWidth = ctx.config.riverWidth / 2;
+        // === 1. Generate Target X-Coordinates per Acre Row ===
+        // We determine the "anchor" column for each vertical acre
+        std::uniform_int_distribution<int> col_dist(0, 3);
+        std::array<int, HEIGHT> column_targets;
 
-        while (currentZ < (HEIGHT * 16))
+        for (int az = 0; az < HEIGHT; ++az)
         {
-            for (int dx = -halfWidth; dx <= (ctx.config.riverWidth - halfWidth - 1); ++dx)
+            // Each acre row gets a target X-coordinate.
+            // We add +1 to avoid column 0, and the logic prevents it from being on the edge.
+            column_targets[az] = (col_dist(ctx.rng) + 1) * Acre::SIZE;
+        }
+
+        // === 2. Build the Boundary Line (Top to Bottom) ===
+        std::vector<int> boundary_line(HEIGHT * Acre::SIZE);
+        for (int z = 0; z < HEIGHT * Acre::SIZE; ++z)
+        {
+            int current_acre_z = z / Acre::SIZE;
+            int next_acre_z = std::min(current_acre_z + 1, HEIGHT - 1);
+            int local_z = z % Acre::SIZE;
+
+            // The jump happens exactly at index 12 of the current acre
+            if (local_z < CONNECTION_POINT)
             {
-                int tx = currentX + dx;
-                if (tx >= 0 && tx < WIDTH * 16)
+                boundary_line[z] = column_targets[current_acre_z];
+            }
+            else
+            {
+                boundary_line[z] = column_targets[next_acre_z];
+            }
+        }
+
+        // === 3. Draw the Tiles ===
+        for (int z = 0; z < HEIGHT * Acre::SIZE; ++z)
+        {
+            int target_x = boundary_line[z];
+
+            // --- Connection Logic: Fill horizontal gaps ---
+            // If this row's X is different from the previous row's X,
+            // we draw a horizontal line to keep the river connected.
+            if (z > 0 && boundary_line[z] != boundary_line[z - 1])
+            {
+                int x_start = std::min(boundary_line[z - 1], boundary_line[z]);
+                int x_end = std::max(boundary_line[z - 1], boundary_line[z]);
+
+                for (int x = x_start; x <= x_end; ++x)
                 {
-                    auto [a, l] = WorldToTile(glm::vec3(tx, 0, currentZ));
+                    auto [a, l] = WorldToTile(glm::vec3(x, 0, z));
                     m_Acres[a.x][a.y].tiles[l.y][l.x].type = TileType::WATER;
                 }
             }
 
-            std::uniform_int_distribution<int> roll(0, 100);
-            int m = roll(ctx.rng);
-            if (m < ctx.config.riverMeanderChance / 2 && currentX > 1)
-                currentX--;
-            else if (m > 100 - (ctx.config.riverMeanderChance / 2) && currentX < (WIDTH * 16) - 2)
-                currentX++;
-            else
-                currentZ++;
+            // --- Standard Vertical Drawing ---
+            auto [a, l] = WorldToTile(glm::vec3(target_x, 0, z));
+            m_Acres[a.x][a.y].tiles[l.y][l.x].type = TileType::WATER;
         }
     }
 
@@ -245,51 +395,110 @@ namespace cozy::world
 
     void Town::DebugDump() const
     {
-        // 1. Print Horizontal Header (Row Numbers)
-        // Shift right to account for the vertical header space
-        std::cout << "    ";
+        constexpr int TOTAL_WIDTH = WIDTH * Acre::SIZE;
+        // Top header: Acre columns (1 to WIDTH)
+        std::cout << "     "; // Space for row labels
         for (int ax = 0; ax < WIDTH; ++ax)
         {
-            // Center the number over the 16 tiles of the acre
-            std::cout << " Acre " << (ax + 1) << "        ";
+            // Manual fixed-width formatting without setw/to_string
+            char buf[16];
+            sprintf(buf, "Acre %d", ax + 1); // Safe for small numbers
+            // Center over 16 tiles + 1 space gap
+            std::cout << buf;
+            // Pad to 17 characters (16 tiles + 1 gap)
+            for (int i = strlen(buf); i < 17; ++i)
+                std::cout << " ";
         }
         std::cout << "\n";
-
-        // 2. Iterate through every world row (Z axis)
-        for (int z = 0; z < HEIGHT * 16; ++z)
+        // Top border
+        std::cout << "    +";
+        for (int i = 0; i < TOTAL_WIDTH + WIDTH; ++i) // +WIDTH for gaps
+            std::cout << "-";
+        std::cout << "+\n";
+        // Main grid: loop over acre rows (A, B, ...)
+        for (int az = 0; az < HEIGHT; ++az)
         {
-            // Print Vertical Header (Column Letters A, B, C...)
-            // We only print the letter at the start of a new Acre row
-            if (z % 16 == 0)
+            char rowLetter = 'A' + az;
+            // Print 16 tile rows for this acre row
+            for (int local_z = 0; local_z < Acre::SIZE; ++local_z)
             {
-                char acreLetter = 'A' + (z / 16);
-                std::cout << acreLetter << " | ";
-            }
-            else
-            {
-                std::cout << "  | ";
-            }
+                int z = az * Acre::SIZE + local_z;
+                // Row label: strong on first line of acre row
+                if (local_z == 0)
+                    std::cout << rowLetter << rowLetter << " | "; // e.g., "AA |"
+                else
+                    std::cout << "   | ";
+                // Print all tiles in this row
+                for (int x = 0; x < TOTAL_WIDTH; ++x)
+                {
+                    auto [a, l] = WorldToTile(glm::vec3(x, 0, z));
+                    const auto &tile = m_Acres[a.x][a.y].tiles[l.y][l.x];
+                    char symbol;
 
-            // 3. Print the Tiles in this row
-            for (int x = 0; x < WIDTH * 16; ++x)
-            {
-                auto [a, l] = WorldToTile(glm::vec3(x, 0, z));
-                const auto &tile = m_Acres[a.x][a.y].tiles[l.y][l.x];
-
-                // Print TileType as an int (0=Empty, 1=Grass, 3=Water, 7=Cliff, etc.)
-                std::cout << static_cast<int>(tile.type);
-
-                // Optional: Add a separator between acres for clarity
-                if ((x + 1) % 16 == 0)
-                    std::cout << " ";
+                    // Water takes priority over other tile types
+                    if (tile.type == TileType::WATER)
+                    {
+                        switch (tile.elevation)
+                        {
+                        case 2:
+                            symbol = 'W';
+                            break; // High plateau
+                        case 1:
+                            symbol = 'w';
+                            break; // Mid plateau
+                        case 0:
+                            symbol = '~';
+                            break; // Ground/beach
+                        default:
+                            symbol = '?';
+                            break;
+                        }
+                    }
+                    else if (tile.type == TileType::CLIFF)
+                    {
+                        symbol = (tile.elevation == 2) ? '#' : '='; // # = high cliff, = = mid cliff
+                    }
+                    else
+                    {
+                        switch (tile.elevation)
+                        {
+                        case 2:
+                            symbol = '^';
+                            break; // High plateau (▲ alternative: ^)
+                        case 1:
+                            symbol = 'o';
+                            break; // Mid plateau (△ alternative: o or -)
+                        case 0:
+                            symbol = '.';
+                            break; // Ground/beach
+                        default:
+                            symbol = '?';
+                            break;
+                        }
+                    }
+                    std::cout << symbol;
+                    // Vertical separator after each acre
+                    if ((x + 1) % Acre::SIZE == 0)
+                        std::cout << " ";
+                }
+                std::cout << "\n";
             }
-            std::cout << "\n";
-
-            // Optional: Add a horizontal line between acre rows
-            if ((z + 1) % 16 == 0)
-            {
-                std::cout << "  " << std::string((WIDTH * 17) + 4, '-') << "\n";
-            }
+            // Horizontal separator after full acre row
+            std::cout << "    +";
+            for (int i = 0; i < TOTAL_WIDTH + WIDTH; ++i)
+                std::cout << "-";
+            std::cout << "+\n";
         }
+        // Legend
+        std::cout << "\nLegend:\n";
+        std::cout << "  . = Ground / Beach (level 0)\n";
+        std::cout << "  o = Mid Plateau (level 1)\n";
+        std::cout << "  ^ = High Plateau (level 2)\n";
+        std::cout << "  = = Mid-level Cliff Face\n";
+        std::cout << "  # = High-level Cliff Face\n";
+        std::cout << "  W = Water (High Plateau)\n";
+        std::cout << "  w = Water (Mid Plateau)\n";
+        std::cout << "  ~ = Water (Ground / Beach)\n";
+        std::cout << "\n";
     }
 }
