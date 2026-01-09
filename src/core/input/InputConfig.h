@@ -15,10 +15,11 @@ namespace cozy::core
         int keyDown{341};         // LEFT_CONTROL
         int keyExit{256};         // ESCAPE
         int keyToggleCursor{258}; // TAB
+        int keyRegenerate{82};    // R
 
         int keySprint{340}; // LEFT_SHIFT
-        int keyZoomIn{81};  // Q (Optional alternative to scroll)
-        int keyZoomOut{69}; // E (Optional alternative to scroll)
+        int keyZoomIn{81};  // Q
+        int keyZoomOut{69}; // E
 
         static constexpr InputConfig Default() noexcept
         {
