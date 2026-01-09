@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Town Map Visualizer - Debug Mode</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+
+        .controls {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        input[type="number"],
+        input[type="range"] {
+            padding: 8px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            border: none;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .debug-mode {
+            background: #3a3a00;
+        }
+
+        #canvas {
+            border: 2px solid #444;
+            background: #000;
+            display: block;
+            margin: 20px auto;
+            image-rendering: pixelated;
+        }
+
+        .legend {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .legend-color {
+            width: 30px;
+            height: 20px;
+            border: 1px solid #666;
+        }
+
+        .stats {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .debug-info {
+            background: #2a2a00;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 14px;
+            font-family: monospace;
+            min-height: 100px;
+        }
+
+        .current-step {
+            color: #ffff00;
+            font-weight: bold;
+        }
+
+        .playback-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🏞️ Town Map Generator - Debug Mode</h1>
+
+        <div class="controls">
+            <div class="control-row">
+                <div class="control-group">
+                    <label>Seed</label>
+                    <input type="number" id="seed" value="12345" min="0">
+                </div>
+                <div class="control-group">
+                    <label>Width (Acres)</label>
+                    <input type="number" id="width" value="5" min="2" max="8">
+                </div>
+                <div class="control-group">
+                    <label>Height (Acres)</label>
+                    <input type="number" id="height" value="6" min="2" max="8">
+                </div>
+                <div class="control-group">
+                    <label>River Width</label>
+                    <input type="number" id="riverWidth" value="3" min="1" max="5">
+                </div>
+            </div>
+
+            <div class="control-row">
+                <div class="control-group">
+                    <label>Min Plateau Row</label>
+                    <input type="number" id="minPlateauRow" value="2" min="0" max="2">
+                </div>
+                <div class="control-group">
+                    <label>Max Plateau Row</label>
+                    <input type="number" id="maxPlateauRow" value="4" min="2" max="4">
+                </div>
+                <div class="control-group">
+                    <label>Min High Plateau Offset</label>
+                    <input type="number" id="minHighOffset" value="1" min="0" max="1">
+                </div>
+                <div class="control-group">
+                    <label>Max High Plateau Offset</label>
+                    <input type="number" id="maxHighOffset" value="2" min="1" max="2">
+                </div>
+            </div>
+
+            <div class="control-row">
+                <div class="control-group">
+                    <label>Tile Size (px)</label>
+                    <input type="range" id="tileSize" value="4" min="4" max="20" step="1">
+                    <span id="tileSizeValue">4</span>
+                </div>
+                <div class="control-group">
+                    <label>Animation Speed (ms per step)</label>
+                    <input type="range" id="animSpeed" value="50" min="1" max="200" step="1">
+                    <span id="animSpeedValue">50</span>
+                </div>
+            </div>
+
+            <div class="playback-controls">
+                <button onclick="startDebugMode()" id="debugBtn" class="debug-mode">🐛 Start Debug Mode</button>
+                <button onclick="generate()" id="instantBtn">⚡ Instant Generate</button>
+                <button onclick="pauseResume()" id="pauseBtn" disabled>⏸️ Pause</button>
+                <button onclick="stepForward()" id="stepBtn" disabled>⏭️ Step</button>
+                <button onclick="stopDebug()" id="stopBtn" disabled>⏹️ Stop</button>
+                <button onclick="randomSeed()">🔀 Random Seed</button>
+            </div>
+
+            <div class="control-group" style="margin-top: 15px;">
+                <label>Timeline (Step <span id="timelineValue">0</span> / <span id="timelineMax">0</span>)</label>
+                <input type="range" id="timeline" value="0" min="0" max="0" step="1" disabled style="width: 100%;">
+            </div>
+        </div>
+
+        <canvas id="canvas"></canvas>
+
+        <div class="debug-info" id="debugInfo">
+            Debug information will appear here during step-by-step generation...
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgb(76, 153, 51);"></div>
+                <span>Ground (Level 0)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgb(96, 184, 64);"></div>
+                <span>Mid Plateau (Level 1)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgb(115, 230, 77);"></div>
+                <span>High Plateau (Level 2)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgb(127, 115, 102);"></div>
+                <span>Cliff (Level 1)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgb(127, 115, 102);"></div>
+                <span>Cliff (Level 2)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgb(25, 102, 204);"></div>
+                <span>Water (Ground)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgb(23, 92, 184);"></div>
+                <span>Water (Mid Plateau)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgb(20, 82, 163);"></div>
+                <span>Water (High Plateau)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgba(255, 0, 0, 0.5);"></div>
+                <span>Current Position (Debug)</span>
+            </div>
+        </div>
+
+        <div class="stats" id="stats"></div>
+    </div>
+
+    <script>
+        const ACRE_SIZE = 16;
+        const CONNECTION_POINT = 12; // Z-axis snap for cliffs
+        const RIVER_CONNECTION_POINT = 3; // Z-axis snap for river
+        const RIVER_X_CONNECTION_POINT = 3; // X-axis target within acre
+
+        let animationState = {
+            running: false,
+            paused: false,
+            intervalId: null,
+            currentStep: 0,
+            steps: []
+        };
+
+        class Town {
+            constructor(width, height) {
+                this.width = width;
+                this.height = height;
+                this.acres = [];
+
+                for (let x = 0; x < width; x++) {
+                    this.acres[x] = [];
+                    for (let y = 0; y < height; y++) {
+                        this.acres[x][y] = {
+                            tiles: Array(ACRE_SIZE).fill(null).map(() =>
+                                Array(ACRE_SIZE).fill(null).map(() => ({
+                                    type: 'GRASS',
+                                    elevation: 0
+                                }))
+                            )
+                        };
+                    }
+                }
+            }
+
+            worldToTile(x, z) {
+                x = Math.max(0, Math.min(x, (this.width * ACRE_SIZE) - 1));
+                z = Math.max(0, Math.min(z, (this.height * ACRE_SIZE) - 1));
+                return {
+                    acre: { x: Math.floor(x / ACRE_SIZE), y: Math.floor(z / ACRE_SIZE) },
+                    local: { x: x % ACRE_SIZE, y: z % ACRE_SIZE }
+                };
+            }
+
+            getTile(x, z) {
+                const pos = this.worldToTile(x, z);
+                return this.acres[pos.acre.x][pos.acre.y].tiles[pos.local.y][pos.local.x];
+            }
+
+            setTile(x, z, type) {
+                const pos = this.worldToTile(x, z);
+                this.acres[pos.acre.x][pos.acre.y].tiles[pos.local.y][pos.local.x].type = type;
+            }
+
+            generateCliffs(rng, config, debug = false) {
+                const steps = [];
+
+                // 1. Generate Mid Plateau Targets (Column-based in C++, which is X in world)
+                const midTargets = [];
+                for (let ax = 0; ax < this.width; ax++) {
+                    const row = randomInt(rng, config.minPlateauRow, config.maxPlateauRow);
+                    midTargets[ax] = (row + 1) * ACRE_SIZE;
+                }
+
+                // 2. Build Mid Boundary Line (Transitions at X=12)
+                const midBoundary = [];
+                for (let x = 0; x < this.width * ACRE_SIZE; x++) {
+                    const currAcre = Math.floor(x / ACRE_SIZE);
+                    const nextAcre = Math.min(currAcre + 1, this.width - 1);
+                    const localX = x % ACRE_SIZE;
+                    midBoundary[x] = (localX <= CONNECTION_POINT) ? midTargets[currAcre] : midTargets[nextAcre];
+                }
+
+                // 3. Generate High Plateau Targets
+                const highTargets = [];
+                for (let ax = 0; ax < this.width; ax++) {
+                    const row = randomInt(rng, config.minHighOffset, config.maxHighOffset);
+                    const candidate = (row + 1) * ACRE_SIZE;
+                    const maxAllowed = midTargets[ax] - ACRE_SIZE;
+                    highTargets[ax] = Math.max(ACRE_SIZE, Math.min(candidate, maxAllowed));
+                }
+
+                // 4. Build High Boundary Line
+                const highBoundary = [];
+                for (let x = 0; x < this.width * ACRE_SIZE; x++) {
+                    const currAcre = Math.floor(x / ACRE_SIZE);
+                    const nextAcre = Math.min(currAcre + 1, this.width - 1);
+                    const localX = x % ACRE_SIZE;
+
+                    let val = (localX <= CONNECTION_POINT) ? highTargets[currAcre] : highTargets[nextAcre];
+
+                    // Clamp to prevent overlap with mid plateau
+                    let maxSafe = midTargets[currAcre] - ACRE_SIZE;
+                    if (currAcre + 1 < this.width) {
+                        maxSafe = Math.min(maxSafe, midTargets[nextAcre] - ACRE_SIZE);
+                    }
+                    highBoundary[x] = Math.max(0, Math.min(val, maxSafe));
+                }
+
+                // 5. Set Elevations with Z-axis snapping (Transitions at Z=12)
+                for (let z = 0; z < this.height * ACRE_SIZE; z++) {
+                    for (let x = 0; x < this.width * ACRE_SIZE; x++) {
+                        const tile = this.getTile(x, z);
+                        const localZ = z % ACRE_SIZE;
+                        const currZAcre = Math.floor(z / ACRE_SIZE);
+                        const nextZAcre = Math.min(currZAcre + 1, this.height - 1);
+
+                        const getBaseElev = (checkZ) => {
+                            if (checkZ < highBoundary[x]) return 2;
+                            if (checkZ < midBoundary[x]) return 1;
+                            return 0;
+                        };
+
+                        if (localZ === CONNECTION_POINT && currZAcre < this.height - 1) {
+                            tile.elevation = getBaseElev(z);
+                        } else if (localZ < CONNECTION_POINT) {
+                            tile.elevation = getBaseElev(currZAcre * ACRE_SIZE + CONNECTION_POINT);
+                        } else {
+                            tile.elevation = getBaseElev(nextZAcre * ACRE_SIZE + CONNECTION_POINT);
+                        }
+                    }
+                }
+
+                // 6. Tag Cliffs
+                for (let x = 0; x < this.width * ACRE_SIZE; x++) {
+                    for (let z = 0; z < this.height * ACRE_SIZE; z++) {
+                        const tile = this.getTile(x, z);
+                        if (tile.elevation === 0) continue;
+                        const neighbors = [{ dx: 1, dz: 0 }, { dx: -1, dz: 0 }, { dx: 0, dz: 1 }, { dx: 0, dz: -1 }];
+                        for (const n of neighbors) {
+                            const nx = x + n.dx, nz = z + n.dz;
+                            if (nx >= 0 && nx < this.width * ACRE_SIZE && nz >= 0 && nz < this.height * ACRE_SIZE) {
+                                if (this.getTile(nx, nz).elevation < tile.elevation) {
+                                    tile.type = 'CLIFF';
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                return steps;
+            }
+
+            carveRiver(rng, config, debug = false) {
+                const steps = [];
+                const halfWidth = Math.floor(config.riverWidth / 2);
+
+                // 1. Generate Target X-Coordinates per Acre Row (Z-axis)
+                const columnTargets = [];
+                for (let az = 0; az < this.height; az++) {
+                    columnTargets[az] = (randomInt(rng, 0, 3) * ACRE_SIZE) + RIVER_X_CONNECTION_POINT;
+                }
+
+                // 2. Build the Path Array (Transitions at Z=3)
+                const boundaryLine = [];
+                for (let z = 0; z < this.height * ACRE_SIZE; z++) {
+                    const currAcreZ = Math.floor(z / ACRE_SIZE);
+                    const nextAcreZ = Math.min(currAcreZ + 1, this.height - 1);
+                    const localZ = z % ACRE_SIZE;
+                    boundaryLine[z] = (localZ < RIVER_CONNECTION_POINT) ? columnTargets[currAcreZ] : columnTargets[nextAcreZ];
+                }
+
+                const paintWater = (centerX, centerZ) => {
+                    for (let dx = -halfWidth; dx <= halfWidth; dx++) {
+                        for (let dz = -halfWidth; dz <= halfWidth; dz++) {
+                            const x = centerX + dx;
+                            const z_coord = centerZ + dz;
+                            if (x >= 0 && x < this.width * ACRE_SIZE && z_coord >= 0 && z_coord < this.height * ACRE_SIZE) {
+                                this.getTile(x, z_coord).type = 'WATER';
+                            }
+                        }
+                    }
+                };
+
+                // 3. Iterate and Carve
+                for (let z = 0; z < this.height * ACRE_SIZE; z++) {
+                    const localZ = z % ACRE_SIZE;
+                    const targetX = boundaryLine[z];
+
+                    if (localZ === RIVER_CONNECTION_POINT && z > 0) {
+                        const startX = boundaryLine[z - 1];
+                        const endX = boundaryLine[z];
+                        if (startX !== endX) {
+                            const dir = (endX > startX) ? 1 : -1;
+                            for (let x = startX; x !== endX + dir; x += dir) {
+                                paintWater(x, z);
+                            }
+                        } else {
+                            paintWater(targetX, z);
+                        }
+                    } else {
+                        paintWater(targetX, z);
+                    }
+                }
+                return steps;
+            }
+        }
+
+        function seededRandom(seed) {
+            let state = seed;
+            return () => {
+                state = (state * 1664525 + 1013904223) >>> 0;
+                return state / 0x100000000;
+            };
+        }
+
+        function randomInt(rng, min, max) {
+            return Math.floor(rng() * (max - min + 1)) + min;
+        }
+
+        function render(town, tileSize, highlightPos = null) {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+
+            const totalWidth = town.width * ACRE_SIZE;
+            const totalHeight = town.height * ACRE_SIZE;
+
+            canvas.width = totalWidth * tileSize;
+            canvas.height = totalHeight * tileSize;
+
+            for (let z = 0; z < totalHeight; z++) {
+                for (let x = 0; x < totalWidth; x++) {
+                    const tile = town.getTile(x, z);
+
+                    let color;
+                    if (tile.type === 'WATER') {
+                        const depthShade = 1.0 - (tile.elevation * 0.1);
+                        const r = Math.floor(25 * depthShade);
+                        const g = Math.floor(102 * depthShade);
+                        const b = Math.floor(204 * depthShade);
+                        color = `rgb(${r}, ${g}, ${b})`;
+                    } else if (tile.type === 'CLIFF') {
+                        color = 'rgb(127, 115, 102)';
+                    } else {
+                        const elevLight = 0.5 + (tile.elevation * 0.15);
+                        const r = Math.floor(76 * elevLight);
+                        const g = Math.floor(153 * elevLight);
+                        const b = Math.floor(51 * elevLight);
+                        color = `rgb(${r}, ${g}, ${b})`;
+                    }
+
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x * tileSize, z * tileSize, tileSize, tileSize);
+
+                    // Highlight current position
+                    if (highlightPos && highlightPos.x === x && highlightPos.z === z) {
+                        ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                        ctx.fillRect(x * tileSize, z * tileSize, tileSize, tileSize);
+                    }
+
+                    // Draw acre borders
+                    if (x % ACRE_SIZE === 0 || z % ACRE_SIZE === 0) {
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(x * tileSize, z * tileSize, tileSize, tileSize);
+                    }
+                }
+            }
+        }
+
+        let currentTown = null;
+        let currentConfig = null;
+
+        function startDebugMode() {
+            stopDebug();
+
+            const seed = parseInt(document.getElementById('seed').value);
+            const width = parseInt(document.getElementById('width').value);
+            const height = parseInt(document.getElementById('height').value);
+            const riverWidth = parseInt(document.getElementById('riverWidth').value);
+            const tileSize = parseInt(document.getElementById('tileSize').value);
+
+            currentConfig = {
+                minPlateauRow: parseInt(document.getElementById('minPlateauRow').value),
+                maxPlateauRow: parseInt(document.getElementById('maxPlateauRow').value),
+                minHighOffset: parseInt(document.getElementById('minHighOffset').value),
+                maxHighOffset: parseInt(document.getElementById('maxHighOffset').value),
+                riverWidth: riverWidth,
+                tileSize: tileSize
+            };
+
+            const rng = seededRandom(seed);
+            currentTown = new Town(width, height);
+
+            const cliffSteps = currentTown.generateCliffs(rng, currentConfig, true);
+            const riverSteps = currentTown.carveRiver(rng, currentConfig, true);
+
+            animationState.steps = [...cliffSteps, ...riverSteps];
+            animationState.currentStep = 0;
+            animationState.running = true;
+            animationState.paused = false;
+
+            // Reset town for animation
+            currentTown = new Town(width, height);
+            render(currentTown, tileSize);
+
+            // Setup timeline slider
+            const timeline = document.getElementById('timeline');
+            timeline.max = animationState.steps.length - 1;
+            timeline.value = 0;
+            timeline.disabled = false;
+            document.getElementById('timelineMax').textContent = animationState.steps.length;
+            document.getElementById('timelineValue').textContent = 0;
+
+            document.getElementById('debugBtn').disabled = true;
+            document.getElementById('instantBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            document.getElementById('stepBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = false;
+
+            runAnimation();
+        }
+
+        function runAnimation() {
+            if (animationState.paused || !animationState.running) return;
+
+            const speed = parseInt(document.getElementById('animSpeed').value);
+
+            animationState.intervalId = setInterval(() => {
+                if (animationState.paused || !animationState.running) return;
+                stepForward();
+            }, speed);
+        }
+
+        function stepForward() {
+            if (animationState.currentStep >= animationState.steps.length) {
+                stopDebug();
+                return;
+            }
+
+            executeStep(animationState.currentStep);
+            animationState.currentStep++;
+
+            // Update timeline slider
+            document.getElementById('timeline').value = animationState.currentStep;
+            document.getElementById('timelineValue').textContent = animationState.currentStep;
+        }
+
+        function executeStep(stepIndex) {
+            const step = animationState.steps[stepIndex];
+
+            // Execute the step
+            if (step.type === 'set_elevation') {
+                currentTown.getTile(step.x, step.z).elevation = step.elevation;
+            } else if (step.type === 'set_cliff') {
+                currentTown.getTile(step.x, step.z).type = 'CLIFF';
+            } else if (step.type === 'carve_water') {
+                currentTown.getTile(step.x, step.z).type = 'WATER';
+            }
+
+            // Update display
+            const highlightPos = step.x !== undefined ? { x: step.x, z: step.z } : null;
+            render(currentTown, currentConfig.tileSize, highlightPos);
+
+            // Update debug info
+            const debugDiv = document.getElementById('debugInfo');
+            debugDiv.innerHTML = `
+                <div class="current-step">Step ${stepIndex + 1} / ${animationState.steps.length}</div>
+                <div>Phase: ${step.type}</div>
+                <div>${step.description}</div>
+                ${step.x !== undefined ? `<div>Position: (${step.x}, ${step.z})</div>` : ''}
+                ${step.elevation !== undefined ? `<div>Elevation: ${step.elevation}</div>` : ''}
+                ${step.tileElev !== undefined ? `<div>Tile Elevation: ${step.tileElev}</div>` : ''}
+                ${step.maxElev !== undefined ? `<div>Max Allowed Elevation: ${step.maxElev}</div>` : ''}
+            `;
+        }
+
+        function jumpToStep(targetStep) {
+            if (!animationState.running || targetStep < 0 || targetStep > animationState.steps.length) {
+                return;
+            }
+
+            // Pause animation if running
+            const wasPlaying = !animationState.paused;
+            if (wasPlaying) {
+                animationState.paused = true;
+                clearInterval(animationState.intervalId);
+                document.getElementById('pauseBtn').textContent = '▶️ Resume';
+            }
+
+            // Reset town and replay up to target step
+            const seed = parseInt(document.getElementById('seed').value);
+            currentTown = new Town(
+                parseInt(document.getElementById('width').value),
+                parseInt(document.getElementById('height').value)
+            );
+
+            for (let i = 0; i < targetStep; i++) {
+                const step = animationState.steps[i];
+                if (step.type === 'set_elevation') {
+                    currentTown.getTile(step.x, step.z).elevation = step.elevation;
+                } else if (step.type === 'set_cliff') {
+                    currentTown.getTile(step.x, step.z).type = 'CLIFF';
+                } else if (step.type === 'carve_water') {
+                    currentTown.getTile(step.x, step.z).type = 'WATER';
+                }
+            }
+
+            animationState.currentStep = targetStep;
+
+            // Show the current step
+            if (targetStep < animationState.steps.length) {
+                const step = animationState.steps[targetStep];
+                const highlightPos = step.x !== undefined ? { x: step.x, z: step.z } : null;
+                render(currentTown, currentConfig.tileSize, highlightPos);
+
+                const debugDiv = document.getElementById('debugInfo');
+                debugDiv.innerHTML = `
+                    <div class="current-step">Step ${targetStep + 1} / ${animationState.steps.length}</div>
+                    <div>Phase: ${step.type}</div>
+                    <div>${step.description}</div>
+                    ${step.x !== undefined ? `<div>Position: (${step.x}, ${step.z})</div>` : ''}
+                    ${step.elevation !== undefined ? `<div>Elevation: ${step.elevation}</div>` : ''}
+                    ${step.tileElev !== undefined ? `<div>Tile Elevation: ${step.tileElev}</div>` : ''}
+                    ${step.maxElev !== undefined ? `<div>Max Allowed Elevation: ${step.maxElev}</div>` : ''}
+                `;
+            } else {
+                render(currentTown, currentConfig.tileSize);
+            }
+
+            document.getElementById('timelineValue').textContent = targetStep;
+        }
+
+        function pauseResume() {
+            animationState.paused = !animationState.paused;
+            const btn = document.getElementById('pauseBtn');
+
+            if (animationState.paused) {
+                clearInterval(animationState.intervalId);
+                btn.textContent = '▶️ Resume';
+            } else {
+                btn.textContent = '⏸️ Pause';
+                runAnimation();
+            }
+        }
+
+        function stopDebug() {
+            clearInterval(animationState.intervalId);
+            animationState.running = false;
+            animationState.paused = false;
+            animationState.currentStep = 0;
+            animationState.steps = [];
+
+            document.getElementById('debugBtn').disabled = false;
+            document.getElementById('instantBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('stepBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('pauseBtn').textContent = '⏸️ Pause';
+            document.getElementById('timeline').disabled = true;
+            document.getElementById('timeline').value = 0;
+            document.getElementById('timelineValue').textContent = 0;
+            document.getElementById('timelineMax').textContent = 0;
+            document.getElementById('debugInfo').innerHTML = 'Debug stopped.';
+        }
+
+        function generate() {
+            const seed = parseInt(document.getElementById('seed').value);
+            const width = parseInt(document.getElementById('width').value);
+            const height = parseInt(document.getElementById('height').value);
+            const riverWidth = parseInt(document.getElementById('riverWidth').value);
+            const tileSize = parseInt(document.getElementById('tileSize').value);
+
+            const config = {
+                minPlateauRow: parseInt(document.getElementById('minPlateauRow').value),
+                maxPlateauRow: parseInt(document.getElementById('maxPlateauRow').value),
+                minHighOffset: parseInt(document.getElementById('minHighOffset').value),
+                maxHighOffset: parseInt(document.getElementById('maxHighOffset').value),
+                riverWidth: riverWidth
+            };
+
+            const rng = seededRandom(seed);
+            const town = new Town(width, height);
+
+            town.generateCliffs(rng, config);
+            town.carveRiver(rng, config);
+
+            currentTown = town;
+            render(town, tileSize);
+
+            document.getElementById('debugInfo').innerHTML = 'Instant generation complete.';
+        }
+
+        function randomSeed() {
+            document.getElementById('seed').value = Math.floor(Math.random() * 1000000);
+            if (!animationState.running) {
+                generate();
+            }
+        }
+
+        document.getElementById('tileSize').addEventListener('input', (e) => {
+            document.getElementById('tileSizeValue').textContent = e.target.value;
+        });
+
+        document.getElementById('animSpeed').addEventListener('input', (e) => {
+            document.getElementById('animSpeedValue').textContent = e.target.value;
+            if (animationState.running && !animationState.paused) {
+                clearInterval(animationState.intervalId);
+                runAnimation();
+            }
+        });
+
+        document.getElementById('timeline').addEventListener('input', (e) => {
+            const targetStep = parseInt(e.target.value);
+            jumpToStep(targetStep);
+        });
+
+        // Generate initial map
+        generate();
+    </script>
+</body>
+
+</html>
