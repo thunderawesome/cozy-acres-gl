@@ -55,6 +55,9 @@ namespace cozy::world
         GenerateCliffs(ctx);
         CarveRiver(ctx);
         // CarvePond(ctx);
+        DebugDump();
+        std::cout << "Seed: " << seed;
+        std::cout << "\n";
     }
 
     void Town::GenerateCliffs(GenContext &ctx)
@@ -246,21 +249,25 @@ namespace cozy::world
 
     void Town::CarveRiver(GenContext &ctx)
     {
-        const int CONNECTION_POINT = 3; // Transition row within each acre
+        // Z_CONNECTION_POINT: The row within an acre where the river shifts (3)
+        const int Z_CONNECTION_POINT = 3;
+        // X_CONNECTION_POINT: The column within an acre where the river is centered (12)
+        const int X_CONNECTION_POINT = 3;
+
+        int width = ctx.config.riverWidth;
+        int halfWidth = width / 2;
 
         // === 1. Generate Target X-Coordinates per Acre Row ===
-        // We determine the "anchor" column for each vertical acre
+        // This defines which "Acre Column" the river flows through for each vertical acre
         std::uniform_int_distribution<int> col_dist(0, 3);
         std::array<int, HEIGHT> column_targets;
-
         for (int az = 0; az < HEIGHT; ++az)
         {
-            // Each acre row gets a target X-coordinate.
-            // We add +1 to avoid column 0, and the logic prevents it from being on the edge.
-            column_targets[az] = (col_dist(ctx.rng) + 1) * Acre::SIZE;
+            // Target is the 12th tile of the chosen acre column
+            column_targets[az] = (col_dist(ctx.rng) * Acre::SIZE) + X_CONNECTION_POINT;
         }
 
-        // === 2. Build the Boundary Line (Top to Bottom) ===
+        // === 2. Build the Path Array ===
         std::vector<int> boundary_line(HEIGHT * Acre::SIZE);
         for (int z = 0; z < HEIGHT * Acre::SIZE; ++z)
         {
@@ -268,8 +275,9 @@ namespace cozy::world
             int next_acre_z = std::min(current_acre_z + 1, HEIGHT - 1);
             int local_z = z % Acre::SIZE;
 
-            // The jump happens exactly at index 12 of the current acre
-            if (local_z < CONNECTION_POINT)
+            // If we haven't reached the connection row (3), stay in the current target
+            // Otherwise, move to the next acre's target column
+            if (local_z < Z_CONNECTION_POINT)
             {
                 boundary_line[z] = column_targets[current_acre_z];
             }
@@ -279,29 +287,57 @@ namespace cozy::world
             }
         }
 
-        // === 3. Draw the Tiles ===
+        // === 3. Drawing Helper ===
+        auto PaintWater = [&](int centerX, int centerZ)
+        {
+            for (int dx = -halfWidth; dx <= halfWidth; ++dx)
+            {
+                for (int dz = -halfWidth; dz <= halfWidth; ++dz)
+                {
+                    int x = centerX + dx;
+                    int y_coord = centerZ + dz;
+
+                    // Bounds check for the world
+                    if (x >= 0 && x < WIDTH * Acre::SIZE && y_coord >= 0 && y_coord < HEIGHT * Acre::SIZE)
+                    {
+                        auto [a, l] = WorldToTile(glm::vec3(x, 0, y_coord));
+                        m_Acres[a.x][a.y].tiles[l.y][l.x].type = TileType::WATER;
+                    }
+                }
+            }
+        };
+
+        // === 4. Iterate and Carve ===
         for (int z = 0; z < HEIGHT * Acre::SIZE; ++z)
         {
             int target_x = boundary_line[z];
+            int local_z = z % Acre::SIZE;
 
-            // --- Connection Logic: Fill horizontal gaps ---
-            // If this row's X is different from the previous row's X,
-            // we draw a horizontal line to keep the river connected.
-            if (z > 0 && boundary_line[z] != boundary_line[z - 1])
+            // Handle the horizontal elbow at the connection row
+            if (local_z == Z_CONNECTION_POINT && z > 0)
             {
-                int x_start = std::min(boundary_line[z - 1], boundary_line[z]);
-                int x_end = std::max(boundary_line[z - 1], boundary_line[z]);
+                int startX = boundary_line[z - 1];
+                int endX = boundary_line[z];
 
-                for (int x = x_start; x <= x_end; ++x)
+                if (startX != endX)
                 {
-                    auto [a, l] = WorldToTile(glm::vec3(x, 0, z));
-                    m_Acres[a.x][a.y].tiles[l.y][l.x].type = TileType::WATER;
+                    int dir = (endX > startX) ? 1 : -1;
+                    // Draw the horizontal bridge from old X target to new X target
+                    for (int x = startX; x != endX + dir; x += dir)
+                    {
+                        PaintWater(x, z);
+                    }
+                }
+                else
+                {
+                    PaintWater(target_x, z);
                 }
             }
-
-            // --- Standard Vertical Drawing ---
-            auto [a, l] = WorldToTile(glm::vec3(target_x, 0, z));
-            m_Acres[a.x][a.y].tiles[l.y][l.x].type = TileType::WATER;
+            else
+            {
+                // Standard vertical flow
+                PaintWater(target_x, z);
+            }
         }
     }
 
