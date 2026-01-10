@@ -11,7 +11,7 @@ Because this is a C++ OpenGL project, there is a web-based prototype in `/misc/t
 
 You can run the generation algorithm directly in your browser:
 
-[![Launch Visualizer](https://img.shields.io/badge/Launch-Live%20Visualizer-brightgreen?style=for-the-badge&logo=javascript)](https://thunderawesome.github.io/cozy-acres-gl/misc/townvisualizer.html)
+[![Launch Visualizer](https://img.shields.io/badge/Launch-Live%20Visualizer-brightgreen?style=for-the-badge&logo=javascript)](https://thunderawesome.github.io/cozy-acres-gl/townvisualizer.html)
 
 * **Shuffle**: Recommended way to view multiple variations of map layout generation.
 * **Deterministic Testing**: Input a **Seed** in the visualizer to produce the same map layout consistently.
