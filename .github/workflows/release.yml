@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "README.md"
+      - "LICENSE"
+      - "misc/townvisualizer.html"
 
 env:
   PROJECT_NAME: cozy_town_gl
