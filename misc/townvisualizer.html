@@ -6,10 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cozy Town Generation Debugger</title>
     <style>
+        :root {
+            --primary-color: #4CAF50;
+            --primary-hover: #45a049;
+            --bg-dark: #1a1a1a;
+            --panel-bg: #2a2a2a;
+            --input-bg: #333;
+            --border-color: #444;
+            --text-main: #f0f0f0;
+            --text-dim: #ccc;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a1a;
-            color: #f0f0f0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
             padding: 20px;
             margin: 0;
             display: flex;
@@ -18,169 +29,210 @@
         }
 
         h1 {
-            color: #4CAF50;
-            margin-bottom: 20px;
+            color: var(--primary-color);
+            margin-bottom: 24px;
+            font-weight: 300;
+            letter-spacing: -0.5px;
         }
 
         .main-layout {
             display: flex;
-            gap: 20px;
+            gap: 24px;
             align-items: flex-start;
             flex-wrap: wrap;
             justify-content: center;
         }
 
         .controls-panel {
-            background: #2a2a2a;
+            background: var(--panel-bg);
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-            width: 300px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+            width: 320px;
             flex-shrink: 0;
         }
 
         .control-section {
-            margin-bottom: 15px;
-            border-bottom: 1px solid #444;
+            margin-bottom: 18px;
+            border-bottom: 1px solid var(--border-color);
             padding-bottom: 15px;
         }
 
-        .control-section:last-child {
+        .control-section:last-of-type {
             border-bottom: none;
+            margin-bottom: 10px;
         }
 
         .section-header {
-            color: #4CAF50;
-            font-size: 0.9em;
+            color: var(--primary-color);
+            font-size: 0.75rem;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-            font-weight: bold;
+            letter-spacing: 1.5px;
+            margin-bottom: 12px;
+            font-weight: 800;
+            opacity: 0.9;
         }
 
         .input-group {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
         }
 
         label {
-            font-size: 0.85em;
-            color: #ccc;
+            font-size: 0.85rem;
+            color: var(--text-dim);
         }
 
-        input[type="number"],
-        input[type="text"] {
-            background: #333;
+        input[type="number"] {
+            background: var(--input-bg);
             border: 1px solid #555;
             color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            width: 60px;
+            padding: 5px 8px;
+            border-radius: 6px;
+            width: 70px;
             text-align: right;
+            transition: border-color 0.2s;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
         }
 
         input[type="range"] {
             width: 100%;
+            accent-color: var(--primary-color);
+            cursor: pointer;
+        }
+
+        .button-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 15px;
         }
 
         button {
             width: 100%;
             padding: 10px;
-            margin-bottom: 10px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            font-weight: bold;
-            transition: background 0.2s;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
 
         .btn-primary {
-            background: #4CAF50;
+            background: var(--primary-color);
             color: white;
         }
 
         .btn-primary:hover {
-            background: #45a049;
+            background: var(--primary-hover);
+            transform: translateY(-1px);
         }
 
-        .btn-secondary {
-            background: #555;
+        .btn-debug {
+            background: #8b8b00;
             color: white;
         }
 
-        .btn-secondary:hover {
-            background: #666;
+        .btn-debug:hover {
+            background: #a5a500;
+        }
+
+        .btn-secondary {
+            background: #444;
+            color: white;
+            flex: 1;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #555;
         }
 
         .btn-secondary:disabled {
-            opacity: 0.5;
+            opacity: 0.3;
             cursor: not-allowed;
         }
 
         #canvas-container {
-            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
 
         canvas {
             background: #000;
-            border: 2px solid #444;
+            border: 3px solid var(--border-color);
+            border-radius: 4px;
             image-rendering: pixelated;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
         }
 
         .info-panel {
-            margin-top: 10px;
-            background: #222;
-            padding: 10px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 0.85em;
-            max-width: 100%;
+            background: #111;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Cascadia Code', 'Courier New', monospace;
+            font-size: 0.8rem;
+            border-left: 3px solid var(--primary-color);
+            min-height: 1.2em;
         }
 
         .legend {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 5px;
-            margin-top: 10px;
-            font-size: 0.8em;
+            gap: 8px;
+            background: var(--panel-bg);
+            padding: 12px;
+            border-radius: 8px;
         }
 
         .legend-item {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 10px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
         }
 
         .swatch {
-            width: 16px;
-            height: 16px;
-            border: 1px solid #555;
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
     </style>
 </head>
 
 <body>
 
-    <h1>Cozy Town Generator (C++ Port)</h1>
+    <h1>Cozy Town Generator</h1>
 
     <div class="main-layout">
         <div class="controls-panel">
             <div class="control-section">
-                <div class="section-header">World</div>
+                <div class="section-header">World Settings</div>
                 <div class="input-group">
                     <label>Seed</label>
-                    <input type="number" id="seed" value="12345">
+                    <input type="text" id="seed" value="12300341248928109213"
+                        oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                 </div>
                 <div class="input-group">
                     <label>Width (Acres)</label>
-                    <input type="number" id="width" value="5" min="2" max="10">
+                    <input type="number" id="width" value="5" min="2" max="15" step="1">
                 </div>
                 <div class="input-group">
                     <label>Height (Acres)</label>
-                    <input type="number" id="height" value="6" min="2" max="10">
+                    <input type="number" id="height" value="6" min="2" max="15" step="1">
                 </div>
             </div>
 
@@ -188,15 +240,15 @@
                 <div class="section-header">Cliffs</div>
                 <div class="input-group">
                     <label>Min Plateau Row</label>
-                    <input type="number" id="minPlateauRow" value="1">
+                    <input type="number" id="minPlateauRow" value="1" min="0" max="10">
                 </div>
                 <div class="input-group">
                     <label>Max Plateau Row</label>
-                    <input type="number" id="maxPlateauRow" value="4">
+                    <input type="number" id="maxPlateauRow" value="4" min="0" max="10">
                 </div>
                 <div class="input-group">
                     <label>High Chance (0-1)</label>
-                    <input type="number" id="highPlateauChance" value="0.75" step="0.05">
+                    <input type="number" id="highPlateauChance" value="0.75" step="0.05" min="0" max="1">
                 </div>
             </div>
 
@@ -204,15 +256,15 @@
                 <div class="section-header">Rivers</div>
                 <div class="input-group">
                     <label>Width</label>
-                    <input type="number" id="riverWidth" value="3">
+                    <input type="number" id="riverWidth" value="3" min="1" max="10">
                 </div>
                 <div class="input-group">
                     <label>Meander %</label>
-                    <input type="number" id="riverMeanderChance" value="50">
+                    <input type="number" id="riverMeanderChance" value="50" min="0" max="100">
                 </div>
                 <div class="input-group">
                     <label>Horizontal %</label>
-                    <input type="number" id="riverHorizontalChance" value="50">
+                    <input type="number" id="riverHorizontalChance" value="50" min="0" max="100">
                 </div>
             </div>
 
@@ -220,25 +272,32 @@
                 <div class="section-header">Visualization</div>
                 <div class="input-group">
                     <label>Tile Size</label>
-                    <input type="range" id="tileSize" min="2" max="12" value="6">
+                    <input type="number" id="tileSize" min="2" max="12" value="6" oninput="render()">
                 </div>
                 <div class="input-group">
                     <label>Speed (ms)</label>
-                    <input type="range" id="animSpeed" min="1" max="200" value="20">
+                    <input type="range" id="animSpeed" min="1" max="200" value="20" oninput="runLoop()">
                 </div>
             </div>
 
-            <button class="btn-primary" onclick="generateInstant()">⚡ Instant Generate</button>
-            <button class="btn-primary" onclick="randomSeed()">? Shuffle</button>
-            <button class="btn-primary" style="background:#8b8b00" onclick="startDebug()">🐛 Debug / Animate</button>
+            <div class="section-header">Actions</div>
+            <div class="button-stack">
+                <button class="btn-primary" onclick="generateInstant()">⚡ Instant Generate</button>
+                <button class="btn-primary" onclick="randomSeed()" style="background: #5c6bc0;">🎲 Shuffle Seed</button>
+                <button class="btn-debug" onclick="startDebug()">🐛 Debug / Animate</button>
 
-            <div style="display:flex; gap:5px;">
-                <button class="btn-secondary" id="btnPause" onclick="togglePause()" disabled>Pause</button>
-                <button class="btn-secondary" id="btnStep" onclick="step()" disabled>Step</button>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn-secondary" id="btnPause" onclick="togglePause()" disabled>Pause</button>
+                    <button class="btn-secondary" id="btnStep" onclick="step()" disabled>Step</button>
+                </div>
             </div>
 
             <div class="control-section">
-                <label>Timeline: <span id="stepDisplay">0</span></label>
+                <div class="input-group" style="margin-bottom: 4px;">
+                    <label>Timeline</label>
+                    <span id="stepDisplay"
+                        style="font-family: monospace; font-size: 0.8rem; color: var(--primary-color);">0</span>
+                </div>
                 <input type="range" id="timeline" value="0" disabled oninput="scrub(this.value)">
             </div>
         </div>
@@ -248,19 +307,19 @@
 
             <div class="legend">
                 <div class="legend-item">
-                    <div class="swatch" style="background:rgb(76,153,51)"></div>Grass L0
+                    <div class="swatch" style="background:rgb(76,153,51)"></div> Grass L0
                 </div>
                 <div class="legend-item">
-                    <div class="swatch" style="background:rgb(114,191,76)"></div>Grass L1
+                    <div class="swatch" style="background:rgb(114,191,76)"></div> Grass L1
                 </div>
                 <div class="legend-item">
-                    <div class="swatch" style="background:rgb(153,229,102)"></div>Grass L2
+                    <div class="swatch" style="background:rgb(153,229,102)"></div> Grass L2
                 </div>
                 <div class="legend-item">
-                    <div class="swatch" style="background:rgb(127,115,102)"></div>Cliff
+                    <div class="swatch" style="background:rgb(127,115,102)"></div> Cliff
                 </div>
                 <div class="legend-item">
-                    <div class="swatch" style="background:rgb(25,102,204)"></div>Water
+                    <div class="swatch" style="background:rgb(25,102,204)"></div> Water
                 </div>
             </div>
 
@@ -269,196 +328,241 @@
     </div>
 
     <script>
-        // ── Constants matching C++ ───────────────────────────────────────────
+        // ── RNG: Mersenne Twister 64-bit ─────────────────────────────────────
+        class MT19937_64 {
+            constructor(seed) {
+                this.n = 312n;
+                this.m = 156n;
+                this.a = 0xB5026F5AA96619E9n;
+                this.state = new BigUint64Array(Number(this.n));
+                this.index = this.n;
+
+                this.state[0] = BigInt(seed);
+                for (let i = 1n; i < this.n; i++) {
+                    this.state[Number(i)] = (6364136223846793005n * (this.state[Number(i - 1n)] ^ (this.state[Number(i - 1n)] >> 62n)) + i);
+                }
+            }
+
+            nextRaw() {
+                if (this.index >= this.n) {
+                    this._twist();
+                }
+
+                let x = this.state[Number(this.index++)];
+                x ^= (x >> 29n) & 0x5555555555555555n;
+                x ^= (x << 17n) & 0x71D67FFFEDA60000n;
+                x ^= (x << 37n) & 0xFFF7EEE000000000n;
+                x ^= (x >> 43n);
+                return x; // Returns BigInt
+            }
+
+            next() {
+                const x = this.nextRaw();
+                // Return as a float 0.0 to 1.0
+                return Number(x) / 18446744073709551616;
+            }
+
+            _twist() {
+                const upperMask = 0xFFFFFFFF80000000n;
+                const lowerMask = 0x7FFFFFFFn;
+
+                for (let i = 0n; i < this.n; i++) {
+                    let x = (this.state[Number(i)] & upperMask) +
+                        (this.state[Number((i + 1n) % this.n)] & lowerMask);
+                    let xA = x >> 1n;
+                    if (x % 2n !== 0n) {
+                        xA ^= this.a;
+                    }
+                    this.state[Number(i)] = this.state[Number((i + this.m) % this.n)] ^ xA;
+                }
+                this.index = 0n;
+            }
+        }
+
+        // ── Constants & Helpers ──────────────────────────────────────────────
         const ACRE_SIZE = 16;
-        const CLIFF_CONNECTION_POINT = 12; // From TownConfig.h
-        const RIVER_CONNECTION_POINT = 3;  // From TownConfig.h
+        const CLIFF_CONNECTION_POINT = 12;
+        const RIVER_CONNECTION_POINT = 3;
 
-        // ── RNG shim to match std::mt19937 roughly ───────────────────────────
-        function seededRandom(seed) {
-            let state = BigInt(seed);
-            return () => {
-                // Linear Congruential Generator parameters usually used for minstd_rand
-                // but essentially we just need deterministic output.
-                state = (state * 1664525n + 1013904223n) & 0xFFFFFFFFn;
-                return Number(state) / 4294967296;
-            };
-        }
+        const randomInt = (mt, min, max) => {
+            const range = BigInt(max - min + 1);
+            if (range <= 0n) return min;
+            const raw = mt.nextRaw();
+            // Mimic C++ uniform_int_distribution using modulo on the raw 64-bit int
+            return Number(raw % range) + min;
+        };
 
-        // Inclusive min, inclusive max
-        function randomInt(rng, min, max) {
-            return Math.floor(rng() * (max - min + 1)) + min;
-        }
-
-        // ── Logic Classes ────────────────────────────────────────────────────
+        // ── Town Class ───────────────────────────────────────────────────────
         class Town {
             constructor(width, height) {
                 this.width = width;
                 this.height = height;
-                this.acres = [];
+                this.acres = Array.from({ length: width }, () =>
+                    Array.from({ length: height }, () => ({
+                        tiles: Array.from({ length: ACRE_SIZE }, () =>
+                            Array.from({ length: ACRE_SIZE }, () => ({ type: 'GRASS', elevation: 0 }))
+                        )
+                    }))
+                );
+            }
 
-                // Initialize grid
-                for (let x = 0; x < width; x++) {
-                    this.acres[x] = [];
-                    for (let y = 0; y < height; y++) {
-                        this.acres[x][y] = {
-                            tiles: Array(ACRE_SIZE).fill(null).map(() =>
-                                Array(ACRE_SIZE).fill(null).map(() => ({
-                                    type: 'GRASS',
-                                    elevation: 0
-                                }))
-                            )
-                        };
+            // Matches Town::Generate step 1
+            reset() {
+                for (let ax = 0; ax < this.width; ax++) {
+                    for (let ay = 0; ay < this.height; ay++) {
+                        const acre = this.acres[ax][ay];
+                        for (let ly = 0; ly < ACRE_SIZE; ly++) {
+                            for (let lx = 0; lx < ACRE_SIZE; lx++) {
+                                acre.tiles[ly][lx].type = 'GRASS';
+                                acre.tiles[ly][lx].elevation = 0;
+                            }
+                        }
                     }
                 }
             }
 
-            // Matches Town::WorldToTile logic
+            // Matches Town::WorldToTile with clamp
             worldToTile(wx, wz) {
-                wx = Math.max(0, Math.min(wx, (this.width * ACRE_SIZE) - 1));
-                wz = Math.max(0, Math.min(wz, (this.height * ACRE_SIZE) - 1));
+                const totalW = this.width * ACRE_SIZE;
+                const totalH = this.height * ACRE_SIZE;
+
+                // std::clamp
+                const x = Math.max(0, Math.min(Math.floor(wx), totalW - 1));
+                const z = Math.max(0, Math.min(Math.floor(wz), totalH - 1));
+
                 return {
-                    ax: Math.floor(wx / ACRE_SIZE),
-                    az: Math.floor(wz / ACRE_SIZE),
-                    lx: wx % ACRE_SIZE,
-                    lz: wz % ACRE_SIZE
+                    ax: Math.floor(x / ACRE_SIZE),
+                    az: Math.floor(z / ACRE_SIZE),
+                    lx: x % ACRE_SIZE,
+                    lz: z % ACRE_SIZE
                 };
             }
 
-            // Matches Town::GetElevation
+            // Matches Town::GetElevation (returns -1 if OOB)
             getElevation(wx, wz) {
                 if (wx < 0 || wx >= this.width * ACRE_SIZE ||
-                    wz < 0 || wz >= this.height * ACRE_SIZE) return -1;
-
+                    wz < 0 || wz >= this.height * ACRE_SIZE) {
+                    return -1;
+                }
                 const pos = this.worldToTile(wx, wz);
                 return this.acres[pos.ax][pos.az].tiles[pos.lz][pos.lx].elevation;
             }
 
+            // Safe tile getter
             getTile(wx, wz) {
                 const pos = this.worldToTile(wx, wz);
                 return this.acres[pos.ax][pos.az].tiles[pos.lz][pos.lx];
             }
 
-            // ── CLIFF GENERATION STEP (Matches CliffGenerationStep.cpp) ──────
+            // ── CLIFF GENERATION (Matches CliffGenerationStep.cpp) ───────────
             generateCliffs(rng, config, recorder) {
                 const totalWidth = this.width * ACRE_SIZE;
                 const totalHeight = this.height * ACRE_SIZE;
 
-                // 1. Decide structure
-                // std::bernoulli_distribution check
-                const useThreeTiers = rng() < config.highPlateauChance;
+                // 1. Decide structure (Bernoulli)
+                // C++ uses random bits. We use nextRaw compared to threshold.
+                const threshold = BigInt(Math.floor(config.highPlateauChance * 18446744073709551616));
+                const useThreeTiers = rng.nextRaw() < threshold;
 
                 let minPlateauRow = config.minPlateauRow;
                 if (useThreeTiers) {
                     minPlateauRow += 2;
                 }
 
-                // 2. Mid plateau (always present)
-                const midTargets = [];
+                // 2. Mid plateau generation
+                const midTargets = new Array(this.width);
                 for (let ax = 0; ax < this.width; ax++) {
-                    // (mid_dist(rng) + 1) * Acre::SIZE
-                    const row = randomInt(rng, minPlateauRow, config.maxPlateauRow);
-                    midTargets[ax] = (row + 1) * ACRE_SIZE;
+                    midTargets[ax] = (randomInt(rng, minPlateauRow, config.maxPlateauRow) + 1) * ACRE_SIZE;
                 }
 
-                // Helper: BuildSteppedBoundary
                 const buildSteppedBoundary = (targets, connPoint) => {
                     const boundary = new Array(totalWidth);
                     for (let x = 0; x < totalWidth; x++) {
                         const currAcre = Math.floor(x / ACRE_SIZE);
                         const nextAcre = Math.min(currAcre + 1, this.width - 1);
                         const localX = x % ACRE_SIZE;
-                        boundary[x] = (localX <= connPoint) ? targets[currAcre] : targets[nextAcre];
+                        boundary[x] = (localX < connPoint) ? targets[currAcre] : targets[nextAcre];
                     }
                     return boundary;
                 };
 
                 const midBoundary = buildSteppedBoundary(midTargets, CLIFF_CONNECTION_POINT);
+                let highBoundary = new Array(totalWidth).fill(0);
 
                 // 3. Optional high plateau
-                let highBoundary = new Array(totalWidth).fill(0);
                 if (useThreeTiers) {
-                    const highTargets = [];
+                    const highTargets = new Array(this.width);
                     for (let ax = 0; ax < this.width; ax++) {
-                        // std::uniform_int_distribution<int> high_dist
                         const candidate = (randomInt(rng, config.minHighOffset, config.maxHighOffset) + 1) * ACRE_SIZE;
                         const maxAllowed = midTargets[ax] - ACRE_SIZE;
-                        // std::clamp
+                        // std::clamp(candidate, ACRE_SIZE, maxAllowed)
                         highTargets[ax] = Math.max(ACRE_SIZE, Math.min(candidate, maxAllowed));
                     }
 
                     highBoundary = buildSteppedBoundary(highTargets, CLIFF_CONNECTION_POINT);
 
-                    // Safety clamp
+                    // Safety clamp (Matches C++ step 3 ending)
                     for (let x = 0; x < totalWidth; x++) {
                         const acreX = Math.floor(x / ACRE_SIZE);
                         const safeMax = midTargets[acreX] - ACRE_SIZE;
-                        highBoundary[x] = Math.min(highBoundary[x], safeMax);
-                        highBoundary[x] = Math.max(highBoundary[x], 0);
+                        highBoundary[x] = Math.max(0, Math.min(highBoundary[x], safeMax));
                     }
                 }
 
-                // 4. Apply Elevations (ComputeSnappedElevation logic)
+                // 4. Apply elevations
+                const computeSnappedElevation = (wx, wz, naiveElev, midLine, highLine, hasHigh, connPoint) => {
+                    const localZ = wz % ACRE_SIZE;
+                    if (localZ === connPoint) return naiveElev;
+
+                    const currAcreZ = Math.floor(wz / ACRE_SIZE);
+                    const targetAcreZ = (localZ < connPoint) ? currAcreZ : currAcreZ + 1;
+
+                    if (targetAcreZ >= this.height) return naiveElev;
+
+                    const checkZ = targetAcreZ * ACRE_SIZE + connPoint;
+                    if (checkZ >= totalHeight) return naiveElev;
+
+                    let result = 0;
+                    if (checkZ < midLine[wx]) result = 1;
+                    if (hasHigh && checkZ < highLine[wx]) result = 2;
+                    return result;
+                };
+
                 for (let wx = 0; wx < totalWidth; wx++) {
                     for (let wz = 0; wz < totalHeight; wz++) {
-                        // Determine naive elevation
                         let naive = 0;
                         if (wz < midBoundary[wx]) naive = 1;
                         if (useThreeTiers && wz < highBoundary[wx]) naive = 2;
 
-                        // ComputeSnappedElevation logic
-                        let snapped = 0;
-                        const localZ = wz % ACRE_SIZE;
+                        const snapped = computeSnappedElevation(
+                            wx, wz, naive,
+                            midBoundary, highBoundary,
+                            useThreeTiers,
+                            CLIFF_CONNECTION_POINT
+                        );
 
-                        if (localZ === CLIFF_CONNECTION_POINT) {
-                            snapped = naive;
-                        } else {
-                            const currAcreZ = Math.floor(wz / ACRE_SIZE);
-                            const targetAcreZ = (localZ < CLIFF_CONNECTION_POINT) ? currAcreZ : currAcreZ + 1;
-
-                            if (targetAcreZ >= this.height) {
-                                snapped = naive;
-                            } else {
-                                const checkZ = targetAcreZ * ACRE_SIZE + CLIFF_CONNECTION_POINT;
-                                if (checkZ >= totalHeight) {
-                                    snapped = naive;
-                                } else {
-                                    let result = 0;
-                                    if (checkZ < midBoundary[wx]) result = 1;
-                                    if (useThreeTiers && checkZ < highBoundary[wx]) result = 2;
-                                    snapped = result;
-                                }
-                            }
-                        }
-
-                        // Apply
-                        const tile = this.getTile(wx, wz);
-                        tile.elevation = snapped;
-
-                        if (recorder) recorder.push({
-                            type: 'elev', x: wx, z: wz, val: snapped,
-                            msg: `Set elevation to ${snapped}`
-                        });
+                        this.getTile(wx, wz).elevation = snapped;
+                        if (recorder) recorder.push({ type: 'elev', x: wx, z: wz, val: snapped, msg: `Set elevation` });
                     }
                 }
 
-                // Tag Cliff Faces
-                const dx = [1, -1, 0, 0];
-                const dz = [0, 0, 1, -1];
-
+                // 5. Tag Cliffs
                 for (let wx = 0; wx < totalWidth; wx++) {
                     for (let wz = 0; wz < totalHeight; wz++) {
                         const tile = this.getTile(wx, wz);
                         if (tile.elevation <= 0) continue;
 
                         let isCliff = false;
-                        for (let d = 0; d < 4; d++) {
-                            const nx = wx + dx[d];
-                            const nz = wz + dz[d];
+                        const neighbors = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+                        for (const [dx, dz] of neighbors) {
+                            const nx = wx + dx;
+                            const nz = wz + dz;
                             if (nx < 0 || nx >= totalWidth || nz < 0 || nz >= totalHeight) continue;
 
-                            const neighbor = this.getTile(nx, nz);
-                            if (neighbor.elevation < tile.elevation) {
+                            // Bounds check handled by getElevation returning -1 for OOB, 
+                            // but tile.elevation is > 0, so -1 < tile.elevation is TRUE.
+                            // This matches C++ TagCliffFaces logic.
+                            if (this.getElevation(nx, nz) < tile.elevation) {
                                 isCliff = true;
                                 break;
                             }
@@ -466,16 +570,13 @@
 
                         if (isCliff) {
                             tile.type = 'CLIFF';
-                            if (recorder) recorder.push({
-                                type: 'cliff', x: wx, z: wz, val: 'CLIFF',
-                                msg: `Tagged as Cliff`
-                            });
+                            if (recorder) recorder.push({ type: 'cliff', x: wx, z: wz, msg: `Tagged Cliff` });
                         }
                     }
                 }
             }
 
-            // ── RIVER GENERATION STEP (Matches RiverGenerationStep.cpp) ──────
+            // ── RIVER GENERATION (Matches RiverGenerationStep.cpp) ───────────
             generateRivers(rng, config, recorder) {
                 const totalWidth = this.width * ACRE_SIZE;
                 const totalHeight = this.height * ACRE_SIZE;
@@ -492,115 +593,109 @@
 
                     const update = (x, z) => {
                         const elev = this.getElevation(x, z);
-                        // River cannot flow UP. 
                         if (elev === -1 || elev > riverElev) return false;
                         riverElev = Math.min(riverElev, elev);
                         return true;
                     };
 
-                    // 1. Vertical segment before bend
+                    // Vertical segment before bend
                     for (let lz = 0; lz < RIVER_CONNECTION_POINT; lz++) {
                         if (!update(entryX, baseZ + lz)) return false;
                     }
 
-                    // 2. Bend Point
+                    // Bend point
                     if (!update(entryX, baseZ + RIVER_CONNECTION_POINT)) return false;
 
-                    // 3. Horizontal segment (bend)
-                    const dirX = (exitX > entryX) ? 1 : ((exitX < entryX) ? -1 : 0);
+                    // Horizontal segment (the bend)
+                    const dx = (exitX > entryX) ? 1 : ((exitX < entryX) ? -1 : 0);
                     const steps = Math.abs(exitX - entryX);
                     let currX = entryX;
                     for (let i = 0; i < steps; i++) {
-                        currX += dirX;
+                        currX += dx;
                         if (!update(currX, baseZ + RIVER_CONNECTION_POINT)) return false;
                     }
 
-                    // 4. Vertical segment after bend
+                    // Vertical segment after bend
                     for (let lz = RIVER_CONNECTION_POINT + 1; lz < ACRE_SIZE; lz++) {
                         if (!update(exitX, baseZ + lz)) return false;
                     }
-
                     return true;
                 };
 
                 // Helper: CarveRiverSection
-                const carveSection = (cx, cz) => {
+                const carveRiverSection = (centerX, centerZ) => {
                     for (let dx = -halfWidth; dx <= halfWidth; dx++) {
                         for (let dz = -halfWidth; dz <= halfWidth; dz++) {
-                            const wx = cx + dx;
-                            const wz = cz + dz;
+                            const wx = centerX + dx;
+                            const wz = centerZ + dz;
                             if (wx >= 0 && wx < totalWidth && wz >= 0 && wz < totalHeight) {
                                 this.getTile(wx, wz).type = 'WATER';
-                                if (recorder) recorder.push({
-                                    type: 'water', x: wx, z: wz, val: 'WATER',
-                                    msg: `Carving river at ${wx},${wz}`
-                                });
+                                if (recorder) recorder.push({ type: 'water', x: wx, z: wz, msg: `Carving river` });
                             }
                         }
                     }
                 };
 
-                // Generate target column for each acre row
-                const columnTargets = new Array(this.height);
+                // 1. Plan the Path
                 let currentCol = randomInt(rng, 0, this.width - 1);
+                const columnTargets = new Array(this.height);
                 columnTargets[0] = currentCol;
 
                 let consecutiveStraight = 0;
-                const maxConsecutive = 2;
+                const maxConsecutiveStraight = 2;
 
                 for (let az = 0; az < this.height - 1; az++) {
                     let nextCol = currentCol;
-                    const straightOk = checkPathValid(az, currentCol, currentCol);
-                    const wantsMeander = (randomInt(rng, 0, 99) < config.riverMeanderChance);
-                    const forceMeander = (consecutiveStraight >= maxConsecutive);
+                    let straightOk = checkPathValid(az, currentCol, currentCol);
+
+                    // Match C++ distributions using randomInt
+                    let wantsMeander = (randomInt(rng, 0, 99) < config.riverMeanderChance);
+                    let forceMeander = (consecutiveStraight >= maxConsecutiveStraight);
 
                     if (!straightOk || wantsMeander || forceMeander) {
-                        const wantsLong = (randomInt(rng, 0, 99) < config.riverHorizontalChance);
-                        let targetChange = 1;
-                        if (wantsLong) targetChange = randomInt(rng, 1, 3); // horizontal_length(1, 3)
+                        let wantsLongHorizontal = (randomInt(rng, 0, 99) < config.riverHorizontalChance);
+                        let targetColChange = 1;
 
-                        const candidates = [];
+                        if (wantsLongHorizontal) {
+                            targetColChange = randomInt(rng, 1, 3);
+                        }
+
+                        let candidates = [];
 
                         // Try moving right
-                        if (currentCol + targetChange < this.width) {
+                        if (currentCol + targetColChange < this.width) {
                             let valid = true;
                             let testCol = currentCol;
-                            for (let s = 0; s < targetChange && valid; s++) {
-                                // Check if we can move from testCol -> testCol+1
+                            for (let step = 0; step < targetColChange && valid; step++) {
                                 if (!checkPathValid(az, testCol, testCol + 1)) valid = false;
                                 else testCol++;
                             }
-                            if (valid) candidates.push(currentCol + targetChange);
+                            if (valid) candidates.push(currentCol + targetColChange);
                         }
 
                         // Try moving left
-                        if (currentCol - targetChange >= 0) {
+                        if (currentCol - targetColChange >= 0) {
                             let valid = true;
                             let testCol = currentCol;
-                            for (let s = 0; s < targetChange && valid; s++) {
+                            for (let step = 0; step < targetColChange && valid; step++) {
                                 if (!checkPathValid(az, testCol, testCol - 1)) valid = false;
                                 else testCol--;
                             }
-                            if (valid) candidates.push(currentCol - targetChange);
+                            if (valid) candidates.push(currentCol - targetColChange);
                         }
 
-                        // Fallback: single steps
+                        // Fallback to single-step moves
                         if (candidates.length === 0) {
-                            if (currentCol > 0 && checkPathValid(az, currentCol, currentCol - 1))
-                                candidates.push(currentCol - 1);
-                            if (currentCol < this.width - 1 && checkPathValid(az, currentCol, currentCol + 1))
-                                candidates.push(currentCol + 1);
+                            if (currentCol > 0 && checkPathValid(az, currentCol, currentCol - 1)) candidates.push(currentCol - 1);
+                            if (currentCol < this.width - 1 && checkPathValid(az, currentCol, currentCol + 1)) candidates.push(currentCol + 1);
                         }
 
                         if (candidates.length > 0) {
-                            // shuffle candidates
-                            const idx = randomInt(rng, 0, candidates.length - 1);
-                            nextCol = candidates[idx];
+                            // Mimic C++ shuffle then [0]
+                            let selectedIdx = randomInt(rng, 0, candidates.length - 1);
+                            nextCol = candidates[selectedIdx];
                             consecutiveStraight = 0;
-                        } else if (!forceMeander) {
-                            consecutiveStraight++;
                         } else {
-                            // Forced to meander but failed... stay straight
                             consecutiveStraight++;
                         }
                     } else {
@@ -611,58 +706,84 @@
                     currentCol = nextCol;
                 }
 
-                // Build river center map
+                // 2. Build X-Center Map
                 const riverCenterX = new Array(totalHeight);
                 for (let z = 0; z < totalHeight; z++) {
-                    const currAcre = Math.floor(z / ACRE_SIZE);
-                    const nextAcre = Math.min(currAcre + 1, this.height - 1);
-                    const localZ = z % ACRE_SIZE;
+                    const az = Math.floor(z / ACRE_SIZE);
+                    const nextAz = Math.min(az + 1, this.height - 1);
+                    const lz = z % ACRE_SIZE;
 
-                    const targetCol = (localZ < RIVER_CONNECTION_POINT)
-                        ? columnTargets[currAcre] : columnTargets[nextAcre];
-
+                    const targetCol = (lz < RIVER_CONNECTION_POINT) ? columnTargets[az] : columnTargets[nextAz];
                     riverCenterX[z] = targetCol * ACRE_SIZE + RIVER_CONNECTION_POINT;
                 }
 
-                // Carve
+                // 3. Carve
                 for (let z = 0; z < totalHeight; z++) {
                     const centerX = riverCenterX[z];
+                    const centerZ = z;
 
-                    // Handle Bend (Horizontal filling)
                     if (z > 0 && (z % ACRE_SIZE) === RIVER_CONNECTION_POINT) {
                         const prevX = riverCenterX[z - 1];
                         if (prevX !== centerX) {
                             const dir = (centerX > prevX) ? 1 : -1;
+                            // Match C++ inclusive bend carving
                             for (let x = prevX; x !== centerX + dir; x += dir) {
-                                carveSection(x, z);
+                                carveRiverSection(x, z);
                             }
                             continue;
                         }
                     }
-                    carveSection(centerX, z);
+                    carveRiverSection(centerX, centerZ);
                 }
             }
         }
 
-
-        // ── Rendering & App State ────────────────────────────────────────────
-        let appState = {
+        // ── Application State & UI ───────────────────────────────────────────
+        let app = {
             town: null,
-            config: {},
             steps: [],
-            currentStepIndex: 0,
-            isPlaying: false,
-            interval: null
+            index: 0,
+            timer: null,
+            paused: true
         };
 
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+        function render() {
+            const tileSize = parseInt(document.getElementById('tileSize').value);
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const totalWidth = app.town.width * ACRE_SIZE;
+            const totalHeight = app.town.height * ACRE_SIZE;
+
+            canvas.width = totalWidth * tileSize;
+            canvas.height = totalHeight * tileSize;
+
+            for (let x = 0; x < totalWidth; x++) {
+                for (let z = 0; z < totalHeight; z++) {
+                    const t = app.town.getTile(x, z);
+                    let fill = '';
+                    if (t.type === 'WATER') fill = '#1966cc';
+                    else if (t.type === 'CLIFF') fill = '#7f7366';
+                    else {
+                        const light = 0.5 + (t.elevation * 0.15);
+                        fill = `rgb(${Math.floor(76 * light)},${Math.floor(153 * light)},${Math.floor(51 * light)})`;
+                    }
+                    ctx.fillStyle = fill;
+                    ctx.fillRect(x * tileSize, z * tileSize, tileSize, tileSize);
+
+                    // Grid lines
+                    if (x % ACRE_SIZE === 0 || z % ACRE_SIZE === 0) {
+                        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                        ctx.fillRect(x * tileSize, z * tileSize, tileSize, tileSize);
+                    }
+                }
+            }
+        }
 
         function getConfig() {
             return {
                 minPlateauRow: parseInt(document.getElementById('minPlateauRow').value),
                 maxPlateauRow: parseInt(document.getElementById('maxPlateauRow').value),
-                minHighOffset: 1, // hardcoded in UI for simplicity, matches C++ TownConfig default
+                minHighOffset: 1,
                 maxHighOffset: 2,
                 highPlateauChance: parseFloat(document.getElementById('highPlateauChance').value),
                 riverWidth: parseInt(document.getElementById('riverWidth').value),
@@ -671,209 +792,152 @@
             };
         }
 
-        function renderTown(town, tileSize, highlight = null) {
-            const totalWidth = town.width * ACRE_SIZE;
-            const totalHeight = town.height * ACRE_SIZE;
-
-            canvas.width = totalWidth * tileSize;
-            canvas.height = totalHeight * tileSize;
-
-            for (let x = 0; x < totalWidth; x++) {
-                for (let y = 0; y < totalHeight; y++) {
-                    const tile = town.getTile(x, y);
-
-                    let fill = '';
-
-                    // Colors extracted from Town.cpp GenerateRenderData
-                    if (tile.type === 'WATER') {
-                        // C++: 0.1*depth, 0.4*depth, 0.8*depth. depth = 1.0 - (elev*0.1)
-                        const depth = 1.0 - (tile.elevation * 0.1);
-                        const r = Math.floor(255 * 0.1 * depth);
-                        const g = Math.floor(255 * 0.4 * depth);
-                        const b = Math.floor(255 * 0.8 * depth);
-                        fill = `rgb(${r},${g},${b})`;
-                    } else if (tile.type === 'CLIFF') {
-                        // C++: 0.5, 0.45, 0.4
-                        fill = `rgb(127,115,102)`;
-                    } else {
-                        // Grass
-                        // C++: light = 0.5 + (elev * 0.15)
-                        // color: 0.3*light, 0.6*light, 0.2*light
-                        const light = 0.5 + (tile.elevation * 0.15);
-                        const r = Math.floor(255 * 0.3 * light);
-                        const g = Math.floor(255 * 0.6 * light);
-                        const b = Math.floor(255 * 0.2 * light);
-                        fill = `rgb(${r},${g},${b})`;
-                    }
-
-                    ctx.fillStyle = fill;
-                    ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-
-                    // Grid lines (Acre borders)
-                    if (x % ACRE_SIZE === 0 || y % ACRE_SIZE === 0) {
-                        ctx.fillStyle = 'rgba(255,255,255,0.1)';
-                        ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-                    }
-                }
-            }
-
-            if (highlight) {
-                ctx.strokeStyle = 'red';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(highlight.x * tileSize, highlight.z * tileSize, tileSize, tileSize);
-            }
-        }
-
-        function randomSeed() {
-            document.getElementById('seed').value = Math.floor(Math.random() * 1000000);
-            generateInstant();
-        }
-
         function generateInstant() {
-            stopAnimation();
-            const width = parseInt(document.getElementById('width').value);
-            const height = parseInt(document.getElementById('height').value);
-            const seed = parseInt(document.getElementById('seed').value);
-            const tileSize = parseInt(document.getElementById('tileSize').value);
+            stopDebug();
+            const w = parseInt(document.getElementById('width').value);
+            const h = parseInt(document.getElementById('height').value);
+            const seedStr = document.getElementById('seed').value;
+            const seed = BigInt(seedStr);
 
+            app.town = new Town(w, h);
+            app.town.reset(); // IMPORTANT: Clear previous data
+
+            const rng = new MT19937_64(seed);
             const config = getConfig();
-            const town = new Town(width, height);
-            const rng = seededRandom(seed);
 
-            town.generateCliffs(rng, config, null);
-            town.generateRivers(rng, config, null);
+            app.town.generateCliffs(rng, config, null);
+            app.town.generateRivers(rng, config, null);
 
-            appState.town = town;
-            renderTown(town, tileSize);
-            document.getElementById('debugInfo').innerText = "Generated successfully.";
-
-            // disable timeline
-            document.getElementById('timeline').disabled = true;
-            document.getElementById('btnPause').disabled = true;
-            document.getElementById('btnStep').disabled = true;
+            render();
+            document.getElementById('debugInfo').textContent = "Generated.";
         }
 
         function startDebug() {
-            stopAnimation();
-            const width = parseInt(document.getElementById('width').value);
-            const height = parseInt(document.getElementById('height').value);
-            const seed = parseInt(document.getElementById('seed').value);
-            const tileSize = parseInt(document.getElementById('tileSize').value);
-
+            stopDebug();
+            const w = parseInt(document.getElementById('width').value);
+            const h = parseInt(document.getElementById('height').value);
+            const seedStr = document.getElementById('seed').value;
+            const seed = BigInt(seedStr);
             const config = getConfig();
-            const town = new Town(width, height);
-            const rng = seededRandom(seed);
 
-            appState.steps = [];
-            town.generateCliffs(rng, config, appState.steps);
-            town.generateRivers(rng, config, appState.steps);
+            // 1. Run generation solely to record steps
+            const simTown = new Town(w, h);
+            simTown.reset();
+            const rng = new MT19937_64(seed);
 
-            // Reset town for playback
-            appState.town = new Town(width, height);
-            appState.currentStepIndex = 0;
+            app.steps = [];
+            simTown.generateCliffs(rng, config, app.steps);
+            simTown.generateRivers(rng, config, app.steps);
 
-            const timeline = document.getElementById('timeline');
-            timeline.disabled = false;
-            timeline.max = appState.steps.length;
-            timeline.value = 0;
+            // 2. Initialize real town for playback
+            app.town = new Town(w, h);
+            app.town.reset();
+            app.index = 0;
+            app.paused = false;
 
+            // 3. UI Setup
+            const tl = document.getElementById('timeline');
+            tl.max = app.steps.length;
+            tl.value = 0;
+            tl.disabled = false;
             document.getElementById('btnPause').disabled = false;
             document.getElementById('btnStep').disabled = false;
+            document.getElementById('btnPause').textContent = "Pause";
 
-            renderTown(appState.town, tileSize);
-
-            // Auto start
-            appState.isPlaying = true;
-            document.getElementById('btnPause').innerText = "Pause";
+            render();
             runLoop();
         }
 
         function runLoop() {
-            const speed = parseInt(document.getElementById('animSpeed').value);
-            appState.interval = setInterval(() => {
-                if (appState.currentStepIndex >= appState.steps.length) {
-                    appState.isPlaying = false;
-                    document.getElementById('btnPause').innerText = "Replay";
-                    clearInterval(appState.interval);
-                    return;
-                }
-                step();
-            }, speed);
-        }
+            // Clear the existing interval
+            clearInterval(app.timer);
 
-        function stopAnimation() {
-            if (appState.interval) clearInterval(appState.interval);
-            appState.isPlaying = false;
-        }
-
-        function togglePause() {
-            if (appState.isPlaying) {
-                stopAnimation();
-                document.getElementById('btnPause').innerText = "Resume";
-            } else {
-                if (appState.currentStepIndex >= appState.steps.length) {
-                    // Reset to 0 if finished
-                    appState.currentStepIndex = 0;
-                    appState.town = new Town(appState.town.width, appState.town.height);
-                }
-                appState.isPlaying = true;
-                document.getElementById('btnPause').innerText = "Pause";
-                runLoop();
+            // Only start a new interval if we aren't paused
+            if (!app.paused) {
+                const speed = parseInt(document.getElementById('animSpeed').value);
+                app.timer = setInterval(() => {
+                    step();
+                }, speed);
             }
         }
 
         function step() {
-            if (appState.currentStepIndex >= appState.steps.length) return;
+            if (app.index >= app.steps.length) {
+                app.paused = true;
+                document.getElementById('btnPause').textContent = "Restart";
+                return;
+            }
+            applyStep(app.steps[app.index]);
+            app.index++;
+            updateUI();
+            render();
+        }
 
-            const s = appState.steps[appState.currentStepIndex];
-            const t = appState.town.getTile(s.x, s.z);
-
-            if (s.type === 'elev') t.elevation = s.val;
-            if (s.type === 'cliff') t.type = s.val;
-            if (s.type === 'water') t.type = s.val;
-
-            appState.currentStepIndex++;
-            document.getElementById('timeline').value = appState.currentStepIndex;
-            document.getElementById('stepDisplay').innerText = `${appState.currentStepIndex} / ${appState.steps.length}`;
-
-            const tileSize = parseInt(document.getElementById('tileSize').value);
-
-            // Optimization: Only full render every N steps if speed is fast, 
-            // otherwise just draw the tile changed? 
-            // For simplicity in this demo, we re-render full.
-            renderTown(appState.town, tileSize, { x: s.x, z: s.z });
-            document.getElementById('debugInfo').innerText = s.msg;
+        function applyStep(s) {
+            const tile = app.town.getTile(s.x, s.z);
+            if (s.type === 'elev') tile.elevation = s.val;
+            if (s.type === 'cliff') tile.type = 'CLIFF';
+            if (s.type === 'water') tile.type = 'WATER';
+            document.getElementById('debugInfo').textContent = `[${app.index}] ${s.msg} at ${s.x},${s.z}`;
         }
 
         function scrub(val) {
-            stopAnimation();
-            document.getElementById('btnPause').innerText = "Resume";
+            app.paused = true;
+            document.getElementById('btnPause').textContent = "Resume";
+
+            // Fast-forward to target step
+            const w = parseInt(document.getElementById('width').value);
+            const h = parseInt(document.getElementById('height').value);
+            app.town = new Town(w, h);
+            app.town.reset();
+            app.index = 0;
 
             const target = parseInt(val);
-            // Rebuild town state from 0 to target
-            // (Inefficient but robust for debug correctness)
-            const width = parseInt(document.getElementById('width').value);
-            const height = parseInt(document.getElementById('height').value);
-
-            appState.town = new Town(width, height);
-
             for (let i = 0; i < target; i++) {
-                const s = appState.steps[i];
-                const t = appState.town.getTile(s.x, s.z);
-                if (s.type === 'elev') t.elevation = s.val;
-                if (s.type === 'cliff') t.type = s.val;
-                if (s.type === 'water') t.type = s.val;
+                applyStep(app.steps[i]);
+                app.index++;
             }
-
-            appState.currentStepIndex = target;
-            const tileSize = parseInt(document.getElementById('tileSize').value);
-            renderTown(appState.town, tileSize);
-            document.getElementById('stepDisplay').innerText = `${target} / ${appState.steps.length}`;
+            updateUI();
+            render();
         }
 
-        // Initial load
-        generateInstant();
+        function togglePause() {
+            if (app.index >= app.steps.length) {
+                startDebug();
+                return;
+            }
+            app.paused = !app.paused;
+            document.getElementById('btnPause').textContent = app.paused ? "Resume" : "Pause";
 
+            if (!app.paused) {
+                runLoop(); // Start the interval when unpausing
+            } else {
+                clearInterval(app.timer); // Stop the interval when pausing
+            }
+        }
+
+        function stopDebug() {
+            clearInterval(app.timer);
+            app.paused = true;
+            document.getElementById('btnPause').disabled = true;
+            document.getElementById('btnStep').disabled = true;
+            document.getElementById('timeline').disabled = true;
+        }
+
+        function updateUI() {
+            document.getElementById('timeline').value = app.index;
+            document.getElementById('stepDisplay').textContent = app.index;
+        }
+
+        function randomSeed() {
+            const min = 100000;
+            const max = 9999999999999;
+            const rnd = Math.floor(Math.random() * (max - min + 1)) + min;
+            document.getElementById('seed').value = rnd.toString();
+            generateInstant();
+        }
+
+        window.onload = generateInstant;
     </script>
 </body>
 
