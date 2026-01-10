@@ -1,14 +1,13 @@
 #include "Town.h"
 #include "generation/GenerationPipeline.h"
-
 #include "generation/steps/CliffGenerationStep.h"
 #include "generation/steps/RiverGenerationStep.h"
 #include "generation/steps/PondGenerationStep.h"
 
 #include <iostream>
-#include <iomanip>
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -152,10 +151,11 @@ namespace cozy::world
         std::cout << "     ";
         for (int ax = 0; ax < WIDTH; ++ax)
         {
-            char buf[16];
-            sprintf(buf, "Acre %d", ax + 1);
-            std::cout << buf;
-            for (int i = static_cast<int>(strlen(buf)); i < 17; ++i)
+            std::string label = "Acre " + std::to_string(ax + 1);
+            std::cout << label;
+
+            // Calculate padding based on string length
+            for (size_t i = label.length(); i < 17; ++i)
                 std::cout << " ";
         }
         std::cout << "\n";
