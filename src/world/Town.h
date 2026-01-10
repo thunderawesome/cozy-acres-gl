@@ -1,100 +1,46 @@
 #pragma once
-#include <vector>
 #include <array>
-#include <unordered_map>
+#include <vector>
 #include <random>
 #include <glm/glm.hpp>
-#include "rendering/InstanceData.h"
+#include "data/Acre.h"
+#include "data/TownConfig.h"
+#include "../rendering/InstanceData.h"
 
 namespace cozy::world
 {
-    struct TownConfig
-    {
-        // Cliff Logic
-        float cliffSmoothness = 0.15f;   // 0.0 (sharp) to 1.0 (smooth)
-        int minPlateauRow = 2;           // Usually Row C
-        int maxPlateauRow = 4;           // Usually Row E
-        int minHighPlateauRowOffset = 1; // Min rows inward from mid plateau edge
-        int maxHighPlateauRowOffset = 2; // Max rows inward (smaller = smaller high plateau)
-        // River Logic
-        int riverWidth = 3;
-        int riverMeanderChance = 20; // Percentage chance to shift X (0-100)
-        // Pond Logic
-        int maxPondSize = 25;
-        int pondSpreadChance = 70; // Percentage chance to grow neighbor (0-100)
-    };
 
-    enum class TileType : uint8_t
-    {
-        EMPTY,
-        GRASS,
-        DIRT,
-        WATER,
-        TREE,
-        ROCK,
-        BUILDING,
-        CLIFF
-    };
-
-    struct Tile
-    {
-        TileType type = TileType::EMPTY;
-        int elevation = 0;
-    };
-
-    struct ObjectConfig
-    {
-        glm::ivec2 pos;
-        glm::ivec2 size;
-        bool blocks_path = true;
-    };
-
-    class Acre
-    {
-    public:
-        static constexpr int SIZE = 16;
-        std::array<std::array<Tile, SIZE>, SIZE> tiles{};
-        std::vector<ObjectConfig> objects;
-        std::unordered_map<uint16_t, const ObjectConfig *> object_lookup;
-        void RebuildLookup();
-    };
+    class GenerationPipeline;
 
     class Town
     {
     public:
         static constexpr int WIDTH = 5;
         static constexpr int HEIGHT = 6;
-        static constexpr int Z_CONNECTION_POINT = 3;
-        static constexpr int X_CONNECTION_POINT = 3;
 
         Town() = default;
 
-        void Generate(uint64_t seed, const TownConfig &config = TownConfig());
-        void DebugDump() const;
+        void Generate(uint64_t seed, const TownConfig &config = {});
 
-        // Bridge to Renderer
+        // Debug & Rendering
+        void DebugDump() const;
         std::vector<rendering::TileInstance> GenerateRenderData() const;
 
-        // Coordinate conversion
+        // Coordinate helpers (very useful for all systems)
         std::pair<glm::ivec2, glm::ivec2> WorldToTile(glm::vec3 world_pos) const;
+        std::pair<glm::ivec2, glm::ivec2> WorldToAcre(glm::vec3 world_pos) const;
+
+        // Low-level access (for generation steps)
+        Acre &GetAcre(int ax, int az) { return m_acres[ax][az]; }
+        const Acre &GetAcre(int ax, int az) const { return m_acres[ax][az]; }
+
+        Tile &GetTileWorld(int wx, int wz);
+        const Tile &GetTileWorld(int wx, int wz) const;
+
+        int GetElevation(int wx, int wz) const;
 
     private:
-        // Internal Context to follow DRY and SOLID principles
-        struct GenContext
-        {
-            std::mt19937_64 &rng;
-            const TownConfig &config;
-        };
-
-        std::array<std::array<Acre, HEIGHT>, WIDTH> m_Acres;
-
-        // Generation Pipeline Steps
-        void GenerateCliffs(GenContext &ctx);
-        void CarveRiver(GenContext &ctx);
-        void CarvePond(GenContext &ctx);
-
-        // River path validation helpers (for smarter river routing)
-        int GetElevation(int world_x, int world_z) const;
-        bool CheckPathValid(int az, int entry_col, int exit_col, GenContext &ctx) const;
+        std::array<std::array<Acre, HEIGHT>, WIDTH> m_acres;
     };
+
 }
