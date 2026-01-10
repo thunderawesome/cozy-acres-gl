@@ -83,6 +83,10 @@ add_executable(${PROJECT_NAME}
     src/rendering/opengl/OpenGLTexture.cpp
 
     # World & DS&A Systems
+    src/world/generation/GenerationPipeline.cpp
+    src/world/generation/steps/CliffGenerationStep.cpp
+    src/world/generation/steps/RiverGenerationStep.cpp
+    src/world/generation/steps/PondGenerationStep.cpp
     src/world/Town.cpp
 
     # Application

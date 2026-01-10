@@ -11,9 +11,40 @@ namespace cozy::core
 
     void InputSystem::Update(platform::IWindow &window, ICamera &camera, float deltaTime)
     {
+        // 1. Update Discrete Action States (Edge Detection)
+        updateActionState(window, InputAction::Regenerate, m_config.keyRegenerate);
+        updateActionState(window, InputAction::Exit, m_config.keyExit);
+        updateActionState(window, InputAction::ToggleCursor, m_config.keyToggleCursor);
+
+        // 2. Handle Continuous Systems
         handleKeyboard(window, camera, deltaTime);
         handleMouse(window, camera);
-        handleCursorToggle(window);
+
+        // 3. System-level Responses
+        if (IsActionTriggered(InputAction::ToggleCursor))
+        {
+            m_cursorDisabled = !m_cursorDisabled;
+            window.SetCursorVisible(!m_cursorDisabled);
+        }
+
+        if (IsActionTriggered(InputAction::Exit))
+        {
+            window.SetShouldClose(true);
+        }
+    }
+
+    void InputSystem::updateActionState(platform::IWindow &window, InputAction action, int keyCode)
+    {
+        bool isDown = window.IsKeyPressed(keyCode);
+        // Action is triggered only on the frame the key goes from UP to DOWN
+        m_actionTriggered[action] = (isDown && !m_lastFrameState[action]);
+        m_lastFrameState[action] = isDown;
+    }
+
+    bool InputSystem::IsActionTriggered(InputAction action) const noexcept
+    {
+        auto it = m_actionTriggered.find(action);
+        return (it != m_actionTriggered.end()) ? it->second : false;
     }
 
     void InputSystem::handleKeyboard(platform::IWindow &window, ICamera &camera, float deltaTime)
@@ -33,18 +64,11 @@ namespace cozy::core
         if (window.IsKeyPressed(m_config.keyDown))
             direction.y -= 1.0f;
 
-        // Detect Sprinting from config
         bool isSprinting = window.IsKeyPressed(m_config.keySprint);
 
         if (glm::length(direction) > 0.01f)
         {
-            // Pass the sprint state to the camera
             camera.ProcessKeyboard(glm::normalize(direction), deltaTime, isSprinting);
-        }
-
-        if (window.IsKeyPressed(m_config.keyExit))
-        {
-            window.SetShouldClose(true);
         }
     }
 
@@ -75,28 +99,8 @@ namespace cozy::core
         if (std::abs(scrollY) > 0.01f)
         {
             auto config = camera.GetConfig();
-            config.fovDegrees -= scrollY * m_config.scrollSensitivity;
-
-            // Clamp FOV so we don't flip the image or zoom into atoms
-            if (config.fovDegrees < 1.0f)
-                config.fovDegrees = 1.0f;
-            if (config.fovDegrees > 90.0f)
-                config.fovDegrees = 90.0f;
-
+            config.fovDegrees = glm::clamp(config.fovDegrees - (scrollY * m_config.scrollSensitivity), 1.0f, 90.0f);
             camera.SetConfig(config);
         }
-    }
-
-    void InputSystem::handleCursorToggle(platform::IWindow &window)
-    {
-        static bool tabWasDown = false;
-        bool tabIsDown = window.IsKeyPressed(m_config.keyToggleCursor);
-
-        if (tabIsDown && !tabWasDown)
-        {
-            m_cursorDisabled = !m_cursorDisabled;
-            window.SetCursorVisible(!m_cursorDisabled);
-        }
-        tabWasDown = tabIsDown;
     }
 }

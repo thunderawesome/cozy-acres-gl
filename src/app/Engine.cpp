@@ -1,5 +1,4 @@
 #include "app/Engine.h"
-
 #include "shaders_embedded.h"
 
 // Platform & Rendering
@@ -18,6 +17,7 @@
 #include "world/Town.h"
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <random>
 
 namespace cozy::app
 {
@@ -34,32 +34,17 @@ namespace cozy::app
         m_camera->SetPosition(glm::vec3(40.0f, 60.0f, 120.0f));
         m_camera->SetRotation(-90.0f, -45.0f);
 
-        // 2. Town setup with Random Seed
+        // 2. Town and Mesh setup
         m_town = std::make_unique<world::Town>();
 
-        // --- RANDOM SEED ASSIGNMENT ---
-        std::random_device rd;
-        uint64_t randomSeed = static_cast<uint64_t>(rd()) << 32 | rd();
-
-        // --- CONFIGURATION ---
-        world::TownConfig config;
-        config.cliffSmoothness = 0.2f;  // Let's make it a bit smoother
-        config.riverWidth = 4;          // A slightly wider river
-        config.riverMeanderChance = 25; // More curves
-
-        m_town->Generate(randomSeed, config);
-        m_town->DebugDump();
-
-        // 3. Mesh setup
         const float *cubeData = rendering::primitives::CubeVertices;
         size_t floatCount = sizeof(rendering::primitives::CubeVertices) / sizeof(float);
         m_townMesh = std::make_unique<rendering::OpenGLInstancedMesh>(cubeData, floatCount);
 
-        // Sync Town data to the Mesh
-        auto instances = m_town->GenerateRenderData();
-        m_townMesh->UpdateInstances(instances);
+        // Perform initial generation
+        RegenerateTown();
 
-        // 4. Shader setup
+        // 3. Shader setup
         if (embedded_instanced_vert && embedded_instanced_frag)
         {
             m_instancedShader = std::make_unique<rendering::OpenGLShader>(
@@ -76,6 +61,26 @@ namespace cozy::app
 
     Engine::~Engine() = default;
 
+    void Engine::RegenerateTown()
+    {
+        // --- RANDOM SEED ASSIGNMENT ---
+        std::random_device rd;
+        uint64_t randomSeed = static_cast<uint64_t>(rd()) << 32 | rd();
+
+        // --- CONFIGURATION ---
+        world::TownConfig config;
+
+        // Generate logic
+        m_town->Generate(randomSeed, config);
+
+        // Update GPU data
+        auto instances = m_town->GenerateRenderData();
+        if (m_townMesh)
+        {
+            m_townMesh->UpdateInstances(instances);
+        }
+    }
+
     void Engine::Run()
     {
         while (!m_window->ShouldClose())
@@ -83,12 +88,19 @@ namespace cozy::app
             m_time->Update();
             float deltaTime = m_time->GetDeltaTime();
 
-            // Update Input (Camera/Movement)
+            // 1. Update Input (Handles Camera movement and Action edge detection)
             m_input->Update(*m_window, *m_camera, deltaTime);
 
+            // 2. Handle Logic via Actions (Polished & Decoupled)
+            // Note: m_rKeyWasPressed is no longer needed here as the InputSystem handles state.
+            if (m_input->IsActionTriggered(core::InputAction::Regenerate))
+            {
+                RegenerateTown();
+            }
+
+            // 3. Rendering
             m_renderer->BeginFrame();
 
-            // Render the Town
             if (m_townMesh && m_instancedShader)
             {
                 m_renderer->BindTexture(*m_testTexture, 0);
@@ -96,6 +108,7 @@ namespace cozy::app
             }
 
             m_renderer->EndFrame();
+
             m_window->SwapBuffers();
             m_window->PollEvents();
         }

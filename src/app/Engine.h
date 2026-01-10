@@ -41,6 +41,12 @@ namespace cozy::app
         // Test objects
         std::unique_ptr<rendering::OpenGLTexture> m_testTexture;
 
+        // Input State for debouncing
+        bool m_rKeyWasPressed = false;
+
+        // Helper for map generation
+        void RegenerateTown();
+
     public:
         Engine();
         ~Engine();
