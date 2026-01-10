@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'misc/townvisualizer.html' # Only triggers if this file changes
+      - "misc/townvisualizer.html" # Only triggers if this file changes
 
   workflow_dispatch:
 
@@ -31,7 +31,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           # We only want to upload the misc folder to keep the site clean
-          path: './misc'
+          path: "./misc"
 
       - name: Deploy to GitHub Pages
         id: deployment
