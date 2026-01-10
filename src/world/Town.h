@@ -1,5 +1,4 @@
 #pragma once
-
 #include <vector>
 #include <array>
 #include <unordered_map>
@@ -12,17 +11,14 @@ namespace cozy::world
     struct TownConfig
     {
         // Cliff Logic
-        float cliffSmoothness = 0.15f; // 0.0 (sharp) to 1.0 (smooth)
-        int minPlateauRow = 2;         // Usually Row C
-        int maxPlateauRow = 4;         // Usually Row E
-
+        float cliffSmoothness = 0.15f;   // 0.0 (sharp) to 1.0 (smooth)
+        int minPlateauRow = 2;           // Usually Row C
+        int maxPlateauRow = 4;           // Usually Row E
         int minHighPlateauRowOffset = 1; // Min rows inward from mid plateau edge
         int maxHighPlateauRowOffset = 2; // Max rows inward (smaller = smaller high plateau)
-
         // River Logic
         int riverWidth = 3;
         int riverMeanderChance = 20; // Percentage chance to shift X (0-100)
-
         // Pond Logic
         int maxPondSize = 25;
         int pondSpreadChance = 70; // Percentage chance to grow neighbor (0-100)
@@ -60,7 +56,6 @@ namespace cozy::world
         std::array<std::array<Tile, SIZE>, SIZE> tiles{};
         std::vector<ObjectConfig> objects;
         std::unordered_map<uint16_t, const ObjectConfig *> object_lookup;
-
         void RebuildLookup();
     };
 
@@ -69,6 +64,8 @@ namespace cozy::world
     public:
         static constexpr int WIDTH = 5;
         static constexpr int HEIGHT = 6;
+        static constexpr int Z_CONNECTION_POINT = 3;
+        static constexpr int X_CONNECTION_POINT = 3;
 
         Town() = default;
 
@@ -95,5 +92,9 @@ namespace cozy::world
         void GenerateCliffs(GenContext &ctx);
         void CarveRiver(GenContext &ctx);
         void CarvePond(GenContext &ctx);
+
+        // River path validation helpers (for smarter river routing)
+        int GetElevation(int world_x, int world_z) const;
+        bool CheckPathValid(int az, int entry_col, int exit_col, GenContext &ctx) const;
     };
 }

@@ -36,6 +36,67 @@ namespace cozy::world
         return {{x / 16, z / 16}, {x % 16, z % 16}};
     }
 
+    int Town::GetElevation(int world_x, int world_z) const
+    {
+        if (world_x < 0 || world_x >= WIDTH * Acre::SIZE || world_z < 0 || world_z >= HEIGHT * Acre::SIZE)
+        {
+            return -1;
+        }
+        auto [acre_pos, local_pos] = WorldToTile(glm::vec3(static_cast<float>(world_x), 0.0f, static_cast<float>(world_z)));
+        return m_Acres[acre_pos.x][acre_pos.y].tiles[local_pos.y][local_pos.x].elevation;
+    }
+
+    bool Town::CheckPathValid(int az, int entry_col, int exit_col, GenContext &ctx) const
+    {
+        int entry_x = entry_col * Acre::SIZE + X_CONNECTION_POINT;
+        int exit_x = exit_col * Acre::SIZE + X_CONNECTION_POINT;
+        int base_z = az * Acre::SIZE;
+
+        int river_elev = GetElevation(entry_x, base_z);
+        if (river_elev == -1)
+            return false;
+
+        auto update = [&](int x, int z) -> bool
+        {
+            int elev = GetElevation(x, z);
+            if (elev == -1 || elev > river_elev)
+                return false;
+            river_elev = std::min(river_elev, elev);
+            return true;
+        };
+
+        // Upper vertical (entry to just before bend)
+        for (int lz = 0; lz < Z_CONNECTION_POINT; ++lz)
+        {
+            if (!update(entry_x, base_z + lz))
+                return false;
+        }
+
+        // Start of horizontal bend (entry_x at bend z)
+        if (!update(entry_x, base_z + Z_CONNECTION_POINT))
+            return false;
+
+        // Rest of horizontal (in flow direction)
+        int dx = (exit_x > entry_x) ? 1 : ((exit_x < entry_x) ? -1 : 0);
+        int num_steps = std::abs(exit_x - entry_x);
+        int curr_x = entry_x;
+        for (int step = 0; step < num_steps; ++step)
+        {
+            curr_x += dx;
+            if (!update(curr_x, base_z + Z_CONNECTION_POINT))
+                return false;
+        }
+
+        // Lower vertical (after bend to exit)
+        for (int lz = Z_CONNECTION_POINT + 1; lz < Acre::SIZE; ++lz)
+        {
+            if (!update(exit_x, base_z + lz))
+                return false;
+        }
+
+        return true;
+    }
+
     void Town::Generate(uint64_t seed, const TownConfig &config)
     {
         std::mt19937_64 rng(seed);
@@ -249,41 +310,80 @@ namespace cozy::world
 
     void Town::CarveRiver(GenContext &ctx)
     {
-        // Z_CONNECTION_POINT: The row within an acre where the river shifts (3)
-        const int Z_CONNECTION_POINT = 3;
-        // X_CONNECTION_POINT: The column within an acre where the river is centered (12)
-        const int X_CONNECTION_POINT = 3;
-
         int width = ctx.config.riverWidth;
         int halfWidth = width / 2;
 
-        // === 1. Generate Target X-Coordinates per Acre Row ===
-        // This defines which "Acre Column" the river flows through for each vertical acre
-        std::uniform_int_distribution<int> col_dist(0, 3);
-        std::array<int, HEIGHT> column_targets;
-        for (int az = 0; az < HEIGHT; ++az)
+        // NEW: Control how often river wants to meander even when straight is ok
+        std::uniform_int_distribution<int> meander_chance(0, 99); // 0-99 → percentage
+        const int FORCED_MEANDER_CHANCE = 35;                     // Tune this! 20–45 feels natural
+
+        std::uniform_int_distribution<int> col_dist(0, WIDTH - 1);
+        std::vector<int> column_targets(HEIGHT);
+        int current_col = col_dist(ctx.rng);
+        column_targets[0] = current_col;
+
+        for (int az = 0; az < HEIGHT - 1; ++az)
         {
-            // Target is the 12th tile of the chosen acre column
-            column_targets[az] = (col_dist(ctx.rng) * Acre::SIZE) + X_CONNECTION_POINT;
+            int next_col = -1;
+            bool straight_valid = CheckPathValid(az, current_col, current_col, ctx);
+
+            // 1. Sometimes force a meander even if straight would work
+            bool wants_to_meander = (meander_chance(ctx.rng) < FORCED_MEANDER_CHANCE);
+
+            if (straight_valid && !wants_to_meander)
+            {
+                // Happy to go straight — most common case
+                next_col = current_col;
+            }
+            else
+            {
+                // Either straight is blocked, OR we just feel like turning
+                std::vector<int> candidates;
+
+                // Prefer small changes (±1) — more natural river look
+                if (current_col > 0)
+                    candidates.push_back(current_col - 1);
+                if (current_col < WIDTH - 1)
+                    candidates.push_back(current_col + 1);
+
+                // Optional: allow bigger jumps sometimes (uncomment for wilder rivers)
+                // if (current_col > 1)        candidates.push_back(current_col - 2);
+                // if (current_col < WIDTH - 2) candidates.push_back(current_col + 2);
+
+                std::shuffle(candidates.begin(), candidates.end(), ctx.rng);
+
+                for (int cand : candidates)
+                {
+                    if (CheckPathValid(az, current_col, cand, ctx))
+                    {
+                        next_col = cand;
+                        break;
+                    }
+                }
+
+                // If no valid neighbor found, fall back to straight (even if we wanted to bend)
+                if (next_col == -1)
+                    next_col = current_col;
+            }
+
+            column_targets[az + 1] = next_col;
+            current_col = next_col;
         }
 
-        // === 2. Build the Path Array ===
+        // === 2. Build the Path Array === (unchanged from here)
         std::vector<int> boundary_line(HEIGHT * Acre::SIZE);
         for (int z = 0; z < HEIGHT * Acre::SIZE; ++z)
         {
             int current_acre_z = z / Acre::SIZE;
             int next_acre_z = std::min(current_acre_z + 1, HEIGHT - 1);
             int local_z = z % Acre::SIZE;
-
-            // If we haven't reached the connection row (3), stay in the current target
-            // Otherwise, move to the next acre's target column
             if (local_z < Z_CONNECTION_POINT)
             {
-                boundary_line[z] = column_targets[current_acre_z];
+                boundary_line[z] = column_targets[current_acre_z] * Acre::SIZE + X_CONNECTION_POINT;
             }
             else
             {
-                boundary_line[z] = column_targets[next_acre_z];
+                boundary_line[z] = column_targets[next_acre_z] * Acre::SIZE + X_CONNECTION_POINT;
             }
         }
 
