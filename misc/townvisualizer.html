@@ -277,8 +277,8 @@
                     <input type="number" id="tileSize" min="2" max="12" value="6" oninput="render()">
                 </div>
                 <div class="input-group">
-                    <label>Speed (ms)</label>
-                    <input type="range" id="animSpeed" min="1" max="200" value="20" oninput="runLoop()">
+                    <label>Speed</label>
+                    <input type="range" id="animSpeed" min="0" max="200" value="100" oninput="runLoop()">
                 </div>
             </div>
 
@@ -851,15 +851,21 @@
         }
 
         function runLoop() {
-            // Clear the existing interval
             clearInterval(app.timer);
 
-            // Only start a new interval if we aren't paused
             if (!app.paused) {
-                const speed = parseInt(document.getElementById('animSpeed').value);
+                const slider = document.getElementById('animSpeed');
+                const sliderVal = parseInt(slider.value);
+                const maxVal = parseInt(slider.max);
+
+                // Logic: (200 - sliderVal) 
+                // If slider is 200: delay is 1ms (Maximum Speed - nearly instant)
+                // If slider is 0: delay is 201ms (Slowest Speed - 5 frames per second)
+                const delay = (maxVal - sliderVal) + 1;
+
                 app.timer = setInterval(() => {
                     step();
-                }, speed);
+                }, delay);
             }
         }
 
