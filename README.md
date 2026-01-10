@@ -1,11 +1,15 @@
 # Cozy Acres Map Generator
 
-This branch introduces the procedural map generation system for Cozy Acres, featuring multi-tiered cliff layouts and meandering river systems. The generator is built with a focus on "stepped" acre-based transitions to ensure consistent connection points between different world sections.
+Featuring multi-tiered cliff layouts and meandering river systems. This generator is built with a focus on "stepped" acre-based transitions to ensure consistent connection points between different world sections.
 
 ![Map Generator Demo](https://s4.ezgif.com/tmp/ezgif-43d480365a3628ca.gif)
 
 ### 🚀 Interactive Algorithm Visualizer
-Because this is a C++ OpenGL project, there is a web-based prototype in `/misc/townvisualizer.html` to verify procedural logic before GPU implementation. You can run the generation algorithm directly in your browser:
+Because this is a C++ OpenGL project, there is a web-based prototype in `/misc/townvisualizer.html` to verify procedural logic before GPU implementation.
+
+> NOTE: JavaScript has different precision and data type capacity. Seed generation may not be the same as C++ (even using similar algorithms). Results may vary!
+
+You can run the generation algorithm directly in your browser:
 
 [![Launch Visualizer](https://img.shields.io/badge/Launch-Live%20Visualizer-brightgreen?style=for-the-badge&logo=javascript)](https://thunderawesome.github.io/cozy-acres-gl/misc/townvisualizer.html)
 
