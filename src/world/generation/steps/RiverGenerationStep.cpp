@@ -27,7 +27,6 @@ namespace cozy::world
                 const int entry_x = entry_col * Acre::SIZE + TownConfig::RIVER_CONNECTION_POINT_OFFSET;
                 const int exit_x = exit_col * Acre::SIZE + TownConfig::RIVER_CONNECTION_POINT_OFFSET;
                 const int base_z = acre_z * Acre::SIZE;
-                const int world_w = Town::WIDTH * Acre::SIZE;
 
                 int river_elev = town.GetElevation(entry_x, base_z);
                 if (river_elev == -1)
@@ -57,7 +56,6 @@ namespace cozy::world
                 int dx = (exit_x > entry_x) ? 1 : ((exit_x < entry_x) ? -1 : 0);
                 int steps = std::abs(exit_x - entry_x);
                 int curr_x = entry_x;
-
                 for (int i = 0; i < steps; ++i)
                 {
                     curr_x += dx;
@@ -99,8 +97,7 @@ namespace cozy::world
                     }
                 }
             }
-
-        } // anonymous namespace
+        }
 
         void Execute(
             Town &town,
@@ -109,71 +106,127 @@ namespace cozy::world
         {
             const int width = config.riverWidth;
             const int halfWidth = width / 2;
-
             std::uniform_int_distribution<int> col_dist(0, Town::WIDTH - 1);
             std::uniform_int_distribution<int> meander_chance(0, 99);
+            std::uniform_int_distribution<int> horizontal_length(1, 3);
 
             // Generate target column for each acre row (Z direction)
             std::vector<int> column_targets(Town::HEIGHT);
             int current_col = col_dist(rng);
             column_targets[0] = current_col;
 
+            int consecutive_straight = 0;           // Track how many acres we've been straight
+            const int max_consecutive_straight = 2; // Force a bend after this many
+
             for (int az = 0; az < Town::HEIGHT - 1; ++az)
             {
                 int next_col = current_col;
                 bool straight_ok = CheckPathValid(town, az, current_col, current_col);
-
                 bool wants_meander = (meander_chance(rng) < config.riverMeanderChance);
 
-                if (!straight_ok || wants_meander)
+                // FORCE a meander if we've been straight too long
+                bool force_meander = (consecutive_straight >= max_consecutive_straight);
+
+                if (!straight_ok || wants_meander || force_meander)
                 {
-                    std::vector<int> candidates;
-                    if (current_col > 0)
-                        candidates.push_back(current_col - 1);
-                    if (current_col < Town::WIDTH - 1)
-                        candidates.push_back(current_col + 1);
+                    // Decide if we want a long horizontal segment or just 1-acre shift
+                    bool wants_long_horizontal = (meander_chance(rng) < config.riverHorizontalChance);
+                    int target_col_change = 1;
 
-                    std::shuffle(candidates.begin(), candidates.end(), rng);
-
-                    for (int cand : candidates)
+                    if (wants_long_horizontal)
                     {
-                        if (CheckPathValid(town, az, current_col, cand))
-                        {
-                            next_col = cand;
-                            break;
-                        }
+                        target_col_change = horizontal_length(rng);
                     }
-                    // If no valid neighbor found → stay straight anyway
+
+                    // Try to move left or right by target_col_change
+                    std::vector<int> candidates;
+
+                    // Try moving right
+                    if (current_col + target_col_change < Town::WIDTH)
+                    {
+                        bool valid = true;
+                        int test_col = current_col;
+                        for (int step = 0; step < target_col_change && valid; ++step)
+                        {
+                            if (!CheckPathValid(town, az, test_col, test_col + 1))
+                                valid = false;
+                            else
+                                test_col++;
+                        }
+                        if (valid)
+                            candidates.push_back(current_col + target_col_change);
+                    }
+
+                    // Try moving left
+                    if (current_col - target_col_change >= 0)
+                    {
+                        bool valid = true;
+                        int test_col = current_col;
+                        for (int step = 0; step < target_col_change && valid; ++step)
+                        {
+                            if (!CheckPathValid(town, az, test_col, test_col - 1))
+                                valid = false;
+                            else
+                                test_col--;
+                        }
+                        if (valid)
+                            candidates.push_back(current_col - target_col_change);
+                    }
+
+                    // If long horizontal didn't work, try single-step moves
+                    if (candidates.empty())
+                    {
+                        if (current_col > 0 && CheckPathValid(town, az, current_col, current_col - 1))
+                            candidates.push_back(current_col - 1);
+                        if (current_col < Town::WIDTH - 1 && CheckPathValid(town, az, current_col, current_col + 1))
+                            candidates.push_back(current_col + 1);
+                    }
+
+                    if (!candidates.empty())
+                    {
+                        std::shuffle(candidates.begin(), candidates.end(), rng);
+                        next_col = candidates[0];
+                        consecutive_straight = 0; // Reset counter when we meander
+                    }
+                    else if (!force_meander)
+                    {
+                        // Couldn't find valid meander, stay straight (but only if not forced)
+                        consecutive_straight++;
+                    }
+                    else
+                    {
+                        // Forced to meander but can't - stay straight anyway
+                        consecutive_straight++;
+                    }
+                }
+                else
+                {
+                    // Chose to stay straight
+                    consecutive_straight++;
                 }
 
                 column_targets[az + 1] = next_col;
                 current_col = next_col;
             }
 
-            // Build smooth boundary line (stepped at connection points)
             const int total_height = Town::HEIGHT * Acre::SIZE;
             std::vector<int> river_center_x(total_height);
-
             for (int z = 0; z < total_height; ++z)
             {
                 int curr_acre = z / Acre::SIZE;
                 int next_acre = std::min(curr_acre + 1, Town::HEIGHT - 1);
                 int local_z = z % Acre::SIZE;
-
                 int target_col = (local_z < TownConfig::RIVER_CONNECTION_POINT_OFFSET)
                                      ? column_targets[curr_acre]
                                      : column_targets[next_acre];
-
                 river_center_x[z] = target_col * Acre::SIZE + TownConfig::RIVER_CONNECTION_POINT_OFFSET;
             }
 
-            // Carve the river
             for (int z = 0; z < total_height; ++z)
             {
                 int center_x = river_center_x[z];
                 int center_z = z;
 
-                // Special handling for horizontal bend sections
                 if (z > 0 && (z % Acre::SIZE) == TownConfig::RIVER_CONNECTION_POINT_OFFSET)
                 {
                     int prev_x = river_center_x[z - 1];
@@ -187,11 +240,8 @@ namespace cozy::world
                         continue;
                     }
                 }
-
-                // Normal case
                 CarveRiverSection(town, center_x, center_z, halfWidth);
             }
         }
-
     }
 }
