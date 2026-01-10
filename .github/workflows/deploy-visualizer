@@ -7,6 +7,8 @@ on:
     paths:
       - 'misc/townvisualizer.html' # Only triggers if this file changes
 
+  workflow_dispatch:
+
 permissions:
   contents: read
   pages: write
