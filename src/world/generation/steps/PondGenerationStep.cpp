@@ -264,9 +264,33 @@ namespace cozy::world
                 if (!best_acres.empty())
                 {
                     auto &acre_pos = best_acres[0];
-                    center = {
-                        acre_pos.x * Acre::SIZE + Acre::SIZE / 2,
-                        acre_pos.y * Acre::SIZE + Acre::SIZE / 2};
+                    int acre_base_x = acre_pos.x * Acre::SIZE;
+                    int acre_base_y = acre_pos.y * Acre::SIZE;
+
+                    // Pick a random corner with 3-tile padding from edges
+                    std::uniform_int_distribution<int> corner_choice(0, 3);
+                    int corner = corner_choice(rng);
+
+                    switch (corner)
+                    {
+                    case 0: // Top-left
+                        center.x = acre_base_x + 3;
+                        center.y = acre_base_y + 3;
+                        break;
+                    case 1: // Top-right
+                        center.x = acre_base_x + Acre::SIZE - 4;
+                        center.y = acre_base_y + 3;
+                        break;
+                    case 2: // Bottom-left
+                        center.x = acre_base_x + 3;
+                        center.y = acre_base_y + Acre::SIZE - 4;
+                        break;
+                    case 3: // Bottom-right
+                        center.x = acre_base_x + Acre::SIZE - 4;
+                        center.y = acre_base_y + Acre::SIZE - 4;
+                        break;
+                    }
+
                     valid_location = true;
                 }
                 else
