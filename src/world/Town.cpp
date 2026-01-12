@@ -2,6 +2,7 @@
 #include "generation/GenerationPipeline.h"
 #include "generation/steps/CliffGenerationStep.h"
 #include "generation/steps/RiverGenerationStep.h"
+#include "generation/steps/RampGenerationStep.h"
 #include "generation/steps/PondGenerationStep.h"
 
 #include <iostream>
@@ -67,6 +68,7 @@ namespace cozy::world
 
         pipeline.AddStep(cliffs::Execute);
         pipeline.AddStep(rivers::Execute);
+        pipeline.AddStep(ramps::Execute);
         pipeline.AddStep(ponds::Execute);
 
         // 3. Run the whole generation process
@@ -121,7 +123,15 @@ namespace cozy::world
                                 {
                                     inst.color = {0.5f, 0.45f, 0.4f};
                                 }
-                                else
+                                else if (tile.type == TileType::RAMP)
+                                {
+                                    float elevationLight = 0.5f + (y * 0.15f);
+                                    inst.color = {
+                                        0.55f * elevationLight, // Sandy/dirt color for ramps
+                                        0.50f * elevationLight,
+                                        0.35f * elevationLight};
+                                }
+                                else // GRASS
                                 {
                                     float elevationLight = 0.5f + (y * 0.15f);
                                     inst.color = {
@@ -182,7 +192,6 @@ namespace cozy::world
                 for (int x = 0; x < TOTAL_WIDTH; ++x)
                 {
                     auto [a, l] = WorldToTile(glm::vec3(static_cast<float>(x), 0.0f, static_cast<float>(z)));
-                    // Inside the grid printing loop
                     const auto &tile = m_acres[a.x][a.y].tiles[l.y][l.x];
 
                     // Always show the CURRENT tile's top surface
@@ -209,7 +218,11 @@ namespace cozy::world
                     {
                         symbol = (tile.elevation == 2) ? '#' : '=';
                     }
-                    else
+                    else if (tile.type == TileType::RAMP)
+                    {
+                        symbol = (tile.elevation == 2) ? '/' : '\\';
+                    }
+                    else // GRASS
                     {
                         switch (tile.elevation)
                         {
@@ -249,9 +262,10 @@ namespace cozy::world
                   << "  ^ = High Plateau (level 2)\n"
                   << "  = = Mid-level Cliff Face\n"
                   << "  # = High-level Cliff Face\n"
+                  << "  / = Ramp (upper portion, descending south)\n"
+                  << "  \\ = Ramp (lower portion, descending south)\n"
                   << "  W = Water (High Plateau)\n"
                   << "  w = Water (Mid Plateau)\n"
                   << "  ~ = Water (Ground / Beach)\n\n";
     }
-
 }

@@ -14,7 +14,8 @@ namespace cozy::world
         TREE,
         ROCK,
         BUILDING,
-        CLIFF
+        CLIFF,
+        RAMP
     };
 
     struct Tile
