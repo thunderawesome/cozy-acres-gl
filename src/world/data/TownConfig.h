@@ -23,7 +23,7 @@ namespace cozy::world
         int riverHorizontalChance = 50; // 0–100 %
 
         // Pond parameters
-        int maxPondSize = 25;
-        int pondSpreadChance = 70; // 0–100 %
+        int minPondRadius = 2;
+        int maxPondRadius = 3;
     };
 }
