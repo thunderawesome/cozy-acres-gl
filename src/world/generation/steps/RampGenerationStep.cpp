@@ -29,8 +29,7 @@ namespace cozy::world
                 return tile.type != TileType::RIVER &&
                        tile.type != TileType::RIVER_MOUTH &&
                        tile.type != TileType::OCEAN &&
-                       tile.type != TileType::POND &&
-                       tile.type != TileType::CLIFF;
+                       tile.type != TileType::POND;
             }
 
             // Updated to check for all water types
