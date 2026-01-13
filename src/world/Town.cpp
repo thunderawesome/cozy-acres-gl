@@ -192,8 +192,6 @@ namespace cozy::world
         {
             std::string label = "Acre " + std::to_string(ax + 1);
             std::cout << label;
-
-            // Calculate padding based on string length
             for (size_t i = label.length(); i < 17; ++i)
                 std::cout << " ";
         }
@@ -220,86 +218,52 @@ namespace cozy::world
 
                 for (int x = 0; x < TOTAL_WIDTH; ++x)
                 {
+                    // Note: WorldToTile is used here for safety, though direct acre access is faster
                     auto [a, l] = WorldToTile(glm::vec3(static_cast<float>(x), 0.0f, static_cast<float>(z)));
                     const auto &tile = m_acres[a.x][a.y].tiles[l.y][l.x];
 
-                    // Always show the CURRENT tile's top surface
                     char symbol;
-                    if (tile.type == TileType::OCEAN)
+                    switch (tile.type)
                     {
-                        symbol = '≈'; // Ocean waves (double wave)
-                    }
-                    else if (tile.type == TileType::SAND)
-                    {
-                        symbol = '░'; // Sand/beach
-                    }
-                    else if (tile.type == TileType::RIVER_MOUTH)
-                    {
-                        symbol = 'Δ'; // River delta
-                    }
-                    else if (tile.type == TileType::RIVER)
-                    {
-                        // River water with elevation distinction
-                        switch (tile.elevation)
-                        {
-                        case 2:
-                            symbol = 'R'; // River on high plateau
-                            break;
-                        case 1:
-                            symbol = 'r'; // River on mid plateau
-                            break;
-                        case 0:
-                            symbol = '~'; // River at ground level
-                            break;
-                        default:
-                            symbol = '?';
-                            break;
-                        }
-                    }
-                    else if (tile.type == TileType::POND)
-                    {
-                        // Pond water with elevation distinction
-                        switch (tile.elevation)
-                        {
-                        case 2:
-                            symbol = 'P'; // Pond on high plateau
-                            break;
-                        case 1:
-                            symbol = 'p'; // Pond on mid plateau
-                            break;
-                        case 0:
-                            symbol = 'o'; // Pond at ground level
-                            break;
-                        default:
-                            symbol = '?';
-                            break;
-                        }
-                    }
-                    else if (tile.type == TileType::CLIFF)
-                    {
+                    case TileType::OCEAN:
+                        symbol = 'W';
+                        break; // 'W' for Water/Waves
+                    case TileType::SAND:
+                        symbol = 's';
+                        break; // Lowercase 's' for sand
+                    case TileType::RIVER_MOUTH:
+                        symbol = 'M';
+                        break; // 'M' for Mouth
+                    case TileType::RIVER:
+                        if (tile.elevation == 2)
+                            symbol = 'R';
+                        else if (tile.elevation == 1)
+                            symbol = 'r';
+                        else
+                            symbol = '~';
+                        break;
+                    case TileType::POND:
+                        if (tile.elevation == 2)
+                            symbol = 'P';
+                        else if (tile.elevation == 1)
+                            symbol = 'p';
+                        else
+                            symbol = 'o'; // 'o' is now unique to ground ponds
+                        break;
+                    case TileType::CLIFF:
                         symbol = (tile.elevation == 2) ? '#' : '=';
-                    }
-                    else if (tile.type == TileType::RAMP)
-                    {
+                        break;
+                    case TileType::RAMP:
                         symbol = (tile.elevation == 2) ? '/' : '\\';
-                    }
-                    else // GRASS
-                    {
-                        switch (tile.elevation)
-                        {
-                        case 2:
-                            symbol = '^';
-                            break;
-                        case 1:
-                            symbol = 'o'; // Note: This conflicts with pond at level 0
-                            break;
-                        case 0:
-                            symbol = '.';
-                            break;
-                        default:
-                            symbol = '?';
-                            break;
-                        }
+                        break;
+                    default: // GRASS
+                        if (tile.elevation == 2)
+                            symbol = '^'; // Peak
+                        else if (tile.elevation == 1)
+                            symbol = '+'; // Mid-level (Fixes 'o' conflict)
+                        else
+                            symbol = '.'; // Ground
+                        break;
                     }
 
                     std::cout << symbol;
@@ -316,27 +280,17 @@ namespace cozy::world
             std::cout << "+\n";
         }
 
-        // Updated legend with all water types
+        // Legend
         std::cout << "\nLegend:\n"
                   << "  Terrain:\n"
-                  << "    . = Ground / Beach (level 0)\n"
-                  << "    o = Mid Plateau (level 1) OR Pond (level 0)\n"
-                  << "    ^ = High Plateau (level 2)\n"
-                  << "    ░ = Sand (beach)\n"
-                  << "  Cliffs:\n"
-                  << "    = = Mid-level Cliff Face\n"
-                  << "    # = High-level Cliff Face\n"
-                  << "  Ramps:\n"
-                  << "    / = Ramp (upper portion, descending south)\n"
-                  << "    \\ = Ramp (lower portion, descending south)\n"
+                  << "    . = Grass (Lvl 0)    + = Grass (Lvl 1)    ^ = Grass (Lvl 2)\n"
+                  << "    s = Sand (Beach)     W = Ocean\n"
                   << "  Water:\n"
-                  << "    ~ = River (level 0)\n"
-                  << "    r = River (level 1)\n"
-                  << "    R = River (level 2)\n"
-                  << "    o = Pond (level 0)\n"
-                  << "    p = Pond (level 1)\n"
-                  << "    P = Pond (level 2)\n"
-                  << "    Δ = River Mouth (delta)\n"
-                  << "    ≈ = Ocean\n\n";
+                  << "    ~ = River (Lvl 0)    r = River (Lvl 1)    R = River (Lvl 2)\n"
+                  << "    o = Pond (Lvl 0)     p = Pond (Lvl 1)     P = Pond (Lvl 2)\n"
+                  << "    M = River Mouth\n"
+                  << "  Vertical:\n"
+                  << "    = = Mid Cliff        # = High Cliff\n"
+                  << "    / , \\ = Ramps\n\n";
     }
 }
