@@ -1,61 +1,164 @@
-# Cozy Acres Map Generator
+# Cozy Acres Map Generator 🌿
 
-Featuring multi-tiered cliff layouts and meandering river systems. This generator is built with a focus on "stepped" acre-based transitions to ensure consistent connection points between different world sections.
+*A modern OpenGL recreation of the Animal Crossing (GameCube) town generation system*
+
+**Cozy Acres** is a C++17 + OpenGL procedural map generator inspired by the **original Animal Crossing (GameCube)** town generation logic.
+
+Rather than relying on noise-based terrain, this project recreates the *rule-driven*, **acre-based** world structure that defined the GameCube era: fixed-size acres, stepped elevation tiers, deterministic cliff transitions, and rivers that flow naturally downhill through the town.
+
+The goal is both **faithful recreation** and **clear, inspectable procedural design** using modern tooling.
 
 ![Map Generator Demo](https://s4.ezgif.com/tmp/ezgif-43d480365a3628ca.gif)
 
-### 🚀 Interactive Algorithm Visualizer
-Because this is a C++ OpenGL project, there is a web-based prototype in `/misc/townvisualizer.html` to verify procedural logic before GPU implementation.
+---
 
-> NOTE: JavaScript has different precision and data type capacity. Seed generation may not be the same as C++ (even using similar algorithms). Results may vary!
+## 🧱 Acre-Based World Structure
 
-You can run the generation algorithm directly in your browser:
+The world is built from a grid of fixed-size **acres**, mirroring Animal Crossing’s internal map layout. Each acre:
 
-[![Launch Visualizer](https://img.shields.io/badge/Launch-Live%20Visualizer-brightgreen?style=for-the-badge&logo=javascript)](https://thunderawesome.github.io/cozy-acres-gl/townvisualizer.html)
+* Has consistent connection points to its neighbors
+* Transitions elevation only at predefined tile offsets
+* Participates in larger, town-wide rules (plateau placement, river flow, ponds)
 
-* **Shuffle**: Recommended way to view multiple variations of map layout generation.
-* **Deterministic Testing**: Input a **Seed** in the visualizer to produce the same map layout consistently.
-* **Debug Mode**: Watch the cliff-tagging and river-carving logic execute tile-by-tile. Pause then step through frame by frame.
-* **Timeline Scrubbing**: Use the slider at the bottom to jump to specific steps in the generation sequence.
+This ensures the resulting town always feels *cohesive* rather than randomly stitched together.
 
-## 🛠 Features
+---
 
-### 1. Cliff & Elevation Generation (`CliffGenerationStep.cpp`)
+## 🚀 Interactive Algorithm Visualizer
 
-Generates a multi-tiered terrain layout with support for up to three elevation levels (Ground, Mid, and High plateaus).
+Because Cozy Acres is primarily a **C++ OpenGL project**, a **web-based visualizer** is included at:
 
-* **Stepped Boundaries**: Uses a `BuildSteppedBoundary` system to ensure that elevation changes happen at consistent connection points (defined by `CLIFF_CONNECTION_POINT_OFFSET`), preventing disjointed terrain between acres.
-* **Snapped Elevation**: Implements `ComputeSnappedElevation` to "snap" tiles to their correct tier based on their position relative to the generated boundary lines.
-* **Cliff Tagging**: Automatically identifies and tags `TileType::CLIFF` by checking for adjacent tiles with lower elevation levels.
+```
+/misc/townvisualizer.html
+```
 
-### 2. River Generation (`RiverGenerationStep.cpp`)
+This tool allows you to validate procedural logic before GPU implementation and observe the generation process in isolation.
 
-Carves a continuous water path through the town that respects the generated elevation.
+> **NOTE:** JavaScript and C++ differ in numeric precision and integer behavior. Even with similar algorithms, seeded output may not match exactly.
 
-* **Meandering Logic**: Features a meander system with configurable chances for both vertical and long horizontal segments.
-* **Elevation-Aware Carving**: The `CheckPathValid` function ensures rivers only flow "downhill" or across level ground, preventing water from being carved into higher terrain tiers.
-* **Meander Constraints**: Includes a safety system to force a bend after a certain number of consecutive straight acres, ensuring visual variety.
+### Live Demo
 
-### 3. Debug Visualizer (`townvisualizer.html`)
+[![Launch Visualizer](https://img.shields.io/badge/Launch-Live%20Visualizer-brightgreen?style=for-the-badge\&logo=javascript)](https://thunderawesome.github.io/cozy-acres-gl/townvisualizer.html)
 
-A standalone web tool to test and visualize the generation logic without running the full game engine.
+### Visualizer Capabilities
 
-* **Playback Controls**: Includes "Start Debug Mode" to watch the map generate tile-by-tile, with pause, resume, and step-forward functionality.
-* **Timeline Scrubbing**: A timeline slider allows you to jump to any specific step in the generation sequence.
-* **Configurable Parameters**: Real-time adjustment of seeds, acre dimensions, plateau chances, and river widths.
+* **Shuffle** – Rapidly preview many town layouts
+* **Deterministic Seeds** – Reproduce identical towns with a known seed
+* **Debug Mode** – Watch cliffs, rivers, and terrain tags update tile-by-tile
+* **Frame Stepping** – Pause and advance the algorithm incrementally
+* **Timeline Scrubbing** – Jump to any point in the generation process
 
-## 🧪 Configuration
+---
 
-The generator uses `TownConfig` to control various generation weights:
+## 🛠 Generation Systems
 
-* `highPlateauChance`: Probability (0.0 - 1.0) of generating a third elevation tier.
-* `riverMeanderChance`: Probability of a river segment shifting columns.
-* `CLIFF_CONNECTION_POINT_OFFSET`: The specific tile index within an acre where cliff transitions occur.
+### 🪨 Terrain, Cliffs & Elevation
 
-## 🚀 How to Use
+Cozy Acres generates a stepped terrain layout inspired by Animal Crossing’s iconic cliffs and plateaus.
 
-The generation is orchestrated through the `Execute` functions in the `cliffs` and `rivers` namespaces.
+* Supports **multiple elevation tiers** (ground, mid, and optional high plateaus)
+* Elevation changes are restricted to **fixed connection points** inside each acre
+* Tiles are automatically classified as walkable ground, cliff faces, or transitions
+* Elevation is *snapped* to clean tiers to avoid noisy or ambiguous terrain
 
-1. Initialize a `Town` object with the desired width/height in acres.
-2. Run `cozy::world::cliffs::Execute` to establish the heightmap.
-3. Run `cozy::world::rivers::Execute` to carve the water system based on those elevations.
+This produces readable, intentional terrain rather than organic noise fields.
+
+---
+
+### 🌊 Rivers & Water Flow
+
+Rivers are carved after terrain generation and must obey strict constraints:
+
+* Rivers always flow **downhill or across level terrain**
+* Meandering behavior introduces horizontal variation
+* Safeguards prevent overly straight or repetitive paths
+* Rivers align cleanly across acre boundaries
+
+The result is a single, continuous river system that feels hand-placed while remaining fully procedural.
+
+---
+
+### 💧 Ponds
+
+Ponds are generated as localized water features with configurable size ranges. They integrate with the existing terrain without breaking elevation rules or acre connectivity.
+
+---
+
+## 🧪 Configuration-Driven Design
+
+All generation behavior is controlled through a single configuration structure, **`TownConfig`**, making the system easy to tune, experiment with, or extend.
+
+### Terrain & Cliff Controls
+
+* `cliffSmoothness`
+  Controls how sharp or gradual elevation transitions appear
+  *(0.0 = sharp steps, 1.0 = smooth transitions)*
+
+* `minPlateauRow` / `maxPlateauRow`
+  Constrains where plateaus may appear vertically in the town
+
+* `minHighPlateauRowOffset` / `maxHighPlateauRowOffset`
+  Controls how far above the mid-plateau a high plateau may form
+
+* `highPlateauChance`
+  Probability of generating a third elevation tier
+
+* `CLIFF_CONNECTION_POINT_OFFSET`
+  Fixed tile index inside an acre where elevation transitions are allowed
+  *(Key to preserving Animal Crossing–style consistency)*
+
+---
+
+### River Controls
+
+* `riverWidth`
+  Controls how wide the river appears in tiles
+
+* `riverMeanderChance`
+  Likelihood that the river changes direction
+
+* `riverHorizontalChance`
+  Probability of long horizontal river segments
+
+* `RIVER_CONNECTION_POINT_OFFSET`
+  Defines consistent acre-to-acre river alignment
+
+---
+
+### Pond Controls
+
+* `minPondRadius` / `maxPondRadius`
+  Controls the size range of generated ponds
+
+---
+
+## 🚀 High-Level Generation Flow
+
+1. Create a town using a grid of acres
+2. Generate elevation tiers and cliffs using deterministic rules
+3. Carve rivers that respect terrain constraints
+4. Place ponds and secondary water features
+
+Each step builds on the previous one, closely following the **ordered, rule-based philosophy** of the original Animal Crossing generator.
+
+---
+
+## 🎮 Inspiration & Goals
+
+Cozy Acres is both:
+
+* A **technical deep-dive** into classic GameCube procedural design
+* A **faithful recreation** of Animal Crossing’s town-generation philosophy
+* A sandbox for experimenting with **deterministic worldbuilding** in modern C++
+
+Rather than hiding logic behind noise functions, this project prioritizes **clarity, control, and intent**.
+
+---
+
+If you want next:
+
+* A short **“Design Philosophy vs Noise-Based Terrain”** section
+* A **portfolio-optimized README** for recruiters
+* Inline diagrams explaining acre connectivity and stepped cliffs
+
+Just say the word 🌱
