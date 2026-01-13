@@ -10,6 +10,8 @@ namespace cozy::world
     namespace rivers
     {
 
+        void CreateRiverMouths(Town &town, std::mt19937_64 &rng);
+
         void Execute(
             Town &town,
             std::mt19937_64 &rng,
