@@ -3,6 +3,8 @@
 #include "world/data/Acre.h"
 #include "world/data/Tile.h"
 #include "world/data/TownConfig.h"
+#include "world/generation/utils/WorldGenUtils.h"
+
 #include <random>
 #include <cmath>
 #include <unordered_set>
@@ -15,23 +17,6 @@ namespace cozy::world
 {
     namespace ponds
     {
-        struct PairHash
-        {
-            std::size_t operator()(const glm::ivec2 &v) const
-            {
-                return std::hash<int>()(v.x) ^ (std::hash<int>()(v.y) << 1);
-            }
-        };
-
-        // Helper to check if a tile is any water type or sand
-        bool IsAnyWater(TileType type)
-        {
-            return type == TileType::RIVER ||
-                   type == TileType::RIVER_MOUTH ||
-                   type == TileType::OCEAN ||
-                   type == TileType::POND;
-        }
-
         // Updated to count all water types and cliffs
         int CountWaterAndCliffTiles(Town &town, int acre_x, int acre_y)
         {
@@ -43,7 +28,7 @@ namespace cozy::world
                 for (int x = 0; x < Acre::SIZE; ++x)
                 {
                     auto &tile = acre.tiles[z][x];
-                    if (IsAnyWater(tile.type) || tile.type == TileType::CLIFF)
+                    if (utils::IsAnyWater(tile.type) || tile.type == TileType::CLIFF)
                     {
                         count++;
                     }
@@ -147,7 +132,7 @@ namespace cozy::world
                         auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
                         // Reject if ANY water type or cliff is present
-                        if (IsAnyWater(tile.type) || tile.type == TileType::CLIFF)
+                        if (utils::IsAnyWater(tile.type) || tile.type == TileType::CLIFF)
                         {
                             return false;
                         }
@@ -163,7 +148,7 @@ namespace cozy::world
             const glm::ivec2 &center,
             int world_w,
             int world_h,
-            std::unordered_set<glm::ivec2, PairHash> &painted)
+            std::unordered_set<glm::ivec2, utils::PairHash> &painted)
         {
             for (int dz = -2; dz <= 1; ++dz)
             {
@@ -181,7 +166,7 @@ namespace cozy::world
                             auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
                             // Only paint over grass/empty tiles, never water or cliffs
-                            if (!IsAnyWater(tile.type) &&
+                            if (!utils::IsAnyWater(tile.type) &&
                                 tile.type != TileType::CLIFF &&
                                 tile.type != TileType::RAMP)
                             {
@@ -335,7 +320,7 @@ namespace cozy::world
                 }
             }
 
-            std::unordered_set<glm::ivec2, PairHash> painted;
+            std::unordered_set<glm::ivec2, utils::PairHash> painted;
             std::queue<glm::ivec2> brush_queue;
 
             int max_dim = max_radius + 3;
