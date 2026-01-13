@@ -8,7 +8,7 @@ Rather than relying on noise-based terrain, this project recreates the *rule-dri
 
 The goal is both **faithful recreation** and **clear, inspectable procedural design** using modern tooling.
 
-![Map Generator Demo](https://s4.ezgif.com/tmp/ezgif-43d480365a3628ca.gif)
+![Map Generator Demo](https://github.com/user-attachments/assets/61913399-729c-43e1-b131-0f2fbff45a12)
 
 ---
 
