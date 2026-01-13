@@ -23,11 +23,16 @@ namespace cozy::world
                 int score; // Higher is better
             };
 
+            // Fixed: Changed || to && - tile is walkable if it's NOT any of these types
             bool IsWalkable(const Tile &tile)
             {
-                return tile.type != TileType::WATER;
+                return tile.type != TileType::RIVER &&
+                       tile.type != TileType::RIVER_MOUTH &&
+                       tile.type != TileType::OCEAN &&
+                       tile.type != TileType::POND;
             }
 
+            // Updated to check for all water types
             bool IsWaterNearby(const Town &town, int wx, int wz, int radius)
             {
                 const int w = Town::WIDTH * Acre::SIZE;
@@ -44,8 +49,16 @@ namespace cozy::world
                             continue;
 
                         auto [a, l] = town.WorldToTile({float(cx), 0.f, float(cz)});
-                        if (town.GetAcre(a.x, a.y).tiles[l.y][l.x].type == TileType::WATER)
+                        const Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
+
+                        // Check for any water type
+                        if (tile.type == TileType::RIVER ||
+                            tile.type == TileType::RIVER_MOUTH ||
+                            tile.type == TileType::OCEAN ||
+                            tile.type == TileType::POND)
+                        {
                             return true;
+                        }
                     }
                 }
                 return false;
