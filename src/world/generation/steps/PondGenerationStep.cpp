@@ -23,6 +23,16 @@ namespace cozy::world
             }
         };
 
+        // Helper to check if a tile is any water type or sand
+        bool IsAnyWater(TileType type)
+        {
+            return type == TileType::RIVER ||
+                   type == TileType::RIVER_MOUTH ||
+                   type == TileType::OCEAN ||
+                   type == TileType::POND;
+        }
+
+        // Updated to count all water types and cliffs
         int CountWaterAndCliffTiles(Town &town, int acre_x, int acre_y)
         {
             int count = 0;
@@ -33,8 +43,7 @@ namespace cozy::world
                 for (int x = 0; x < Acre::SIZE; ++x)
                 {
                     auto &tile = acre.tiles[z][x];
-                    if (tile.type == TileType::WATER ||
-                        tile.type == TileType::CLIFF)
+                    if (IsAnyWater(tile.type) || tile.type == TileType::CLIFF)
                     {
                         count++;
                     }
@@ -55,8 +64,11 @@ namespace cozy::world
 
             std::vector<AcreScore> candidates;
 
-            // Score all acres
-            for (int ay = 0; ay < Town::HEIGHT; ++ay)
+            // Don't consider the ocean row (bottom row) for pond placement
+            const int max_acre_y = Town::HEIGHT - 1;
+
+            // Score all acres except ocean row
+            for (int ay = 0; ay < max_acre_y; ++ay)
             {
                 for (int ax = 0; ax < Town::WIDTH; ++ax)
                 {
@@ -76,7 +88,7 @@ namespace cozy::world
                             int nx = ax + dx;
                             int ny = ay + dy;
 
-                            if (nx >= 0 && nx < Town::WIDTH && ny >= 0 && ny < Town::HEIGHT)
+                            if (nx >= 0 && nx < Town::WIDTH && ny >= 0 && ny < max_acre_y)
                             {
                                 score.neighbor_water_cliff_count += CountWaterAndCliffTiles(town, nx, ny);
                             }
@@ -112,15 +124,18 @@ namespace cozy::world
             int world_w,
             int world_h)
         {
-            // Check if pond would be too close to boundaries
+            // Don't place ponds in the ocean row
+            const int ocean_start_z = (Town::HEIGHT - 1) * Acre::SIZE;
+
+            // Check if pond would be too close to boundaries or ocean
             int buffer = radius + 4;
             if (center.x < buffer || center.x >= world_w - buffer ||
-                center.y < buffer || center.y >= world_h - buffer)
+                center.y < buffer || center.y >= ocean_start_z - buffer)
             {
                 return false;
             }
 
-            // Check if area contains water or cliffs
+            // Check if area contains ANY water or cliffs
             int check_radius = radius + 2;
             for (int z = center.y - check_radius; z <= center.y + check_radius; ++z)
             {
@@ -131,8 +146,8 @@ namespace cozy::world
                         auto [a, l] = town.WorldToTile({static_cast<float>(x), 0.f, static_cast<float>(z)});
                         auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
-                        if (tile.type == TileType::WATER ||
-                            tile.type == TileType::CLIFF)
+                        // Reject if ANY water type or cliff is present
+                        if (IsAnyWater(tile.type) || tile.type == TileType::CLIFF)
                         {
                             return false;
                         }
@@ -165,10 +180,12 @@ namespace cozy::world
                             auto [a, l] = town.WorldToTile({static_cast<float>(x), 0.f, static_cast<float>(z)});
                             auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
-                            if (tile.type != TileType::WATER &&
-                                tile.type != TileType::CLIFF)
+                            // Only paint over grass/empty tiles, never water or cliffs
+                            if (!IsAnyWater(tile.type) &&
+                                tile.type != TileType::CLIFF &&
+                                tile.type != TileType::RAMP)
                             {
-                                tile.type = TileType::WATER;
+                                tile.type = TileType::POND; // Use POND instead of WATER
                                 painted.insert(pos);
                             }
                         }
@@ -184,8 +201,9 @@ namespace cozy::world
         {
             const int world_w = Town::WIDTH * Acre::SIZE;
             const int world_h = Town::HEIGHT * Acre::SIZE;
+            const int ocean_start_z = (Town::HEIGHT - 1) * Acre::SIZE;
 
-            // Get sorted list of best acres
+            // Get sorted list of best acres (excludes ocean row)
             std::vector<glm::ivec2> best_acres = GetBestAcresForPond(town);
 
             std::uniform_int_distribution<int> radius_dist(config.minPondRadius, config.maxPondRadius);
@@ -235,6 +253,10 @@ namespace cozy::world
 
             for (const auto &acre_pos : best_acres)
             {
+                // Skip if acre is in ocean row (shouldn't happen due to GetBestAcresForPond, but safety check)
+                if (acre_pos.y >= Town::HEIGHT - 1)
+                    continue;
+
                 int acre_center_x = acre_pos.x * Acre::SIZE + Acre::SIZE / 2;
                 int acre_center_y = acre_pos.y * Acre::SIZE + Acre::SIZE / 2;
 
@@ -244,6 +266,10 @@ namespace cozy::world
                     center = {
                         acre_center_x + offset_dist(rng),
                         acre_center_y + offset_dist(rng)};
+
+                    // Make sure we're not in ocean row
+                    if (center.y >= ocean_start_z - max_radius - 4)
+                        continue;
 
                     if (CanPlacePond(town, center, max_radius, world_w, world_h))
                     {
@@ -258,12 +284,17 @@ namespace cozy::world
                 }
             }
 
-            // If still no valid location, just place it at the best acre center
+            // If still no valid location, try placing at the best acre center
             if (!valid_location)
             {
                 if (!best_acres.empty())
                 {
                     auto &acre_pos = best_acres[0];
+
+                    // Skip ocean row
+                    if (acre_pos.y >= Town::HEIGHT - 1)
+                        return;
+
                     int acre_base_x = acre_pos.x * Acre::SIZE;
                     int acre_base_y = acre_pos.y * Acre::SIZE;
 
@@ -291,11 +322,16 @@ namespace cozy::world
                         break;
                     }
 
-                    valid_location = true;
+                    // Final safety check - don't place in ocean
+                    if (center.y < ocean_start_z - max_radius - 4)
+                    {
+                        valid_location = true;
+                    }
                 }
-                else
+
+                if (!valid_location)
                 {
-                    return; // No acres available at all
+                    return; // Can't find valid placement
                 }
             }
 

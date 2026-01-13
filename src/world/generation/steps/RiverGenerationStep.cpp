@@ -77,7 +77,8 @@ namespace cozy::world
                 Town &town,
                 int center_x,
                 int center_z,
-                int half_width)
+                int half_width,
+                bool is_river_mouth = false)
             {
                 const int w = Town::WIDTH * Acre::SIZE;
                 const int h = Town::HEIGHT * Acre::SIZE;
@@ -92,7 +93,10 @@ namespace cozy::world
                         if (wx >= 0 && wx < w && wz >= 0 && wz < h)
                         {
                             auto [a, l] = town.WorldToTile({static_cast<float>(wx), 0.f, static_cast<float>(wz)});
-                            town.GetAcre(a.x, a.y).tiles[l.y][l.x].type = TileType::WATER;
+                            Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
+
+                            // Use RIVER_MOUTH for transition, otherwise WATER
+                            tile.type = is_river_mouth ? TileType::RIVER_MOUTH : TileType::RIVER;
                         }
                     }
                 }
@@ -111,25 +115,25 @@ namespace cozy::world
             std::uniform_int_distribution<int> horizontal_length(1, 3);
 
             // Generate target column for each acre row (Z direction)
+            // River flows through ALL acres including the ocean row
             std::vector<int> column_targets(Town::HEIGHT);
             int current_col = col_dist(rng);
             column_targets[0] = current_col;
 
-            int consecutive_straight = 0;           // Track how many acres we've been straight
-            const int max_consecutive_straight = 2; // Force a bend after this many
+            int consecutive_straight = 0;
+            const int max_consecutive_straight = 2;
 
+            // Generate river path through all acres (including ocean acre)
             for (int az = 0; az < Town::HEIGHT - 1; ++az)
             {
                 int next_col = current_col;
                 bool straight_ok = CheckPathValid(town, az, current_col, current_col);
                 bool wants_meander = (meander_chance(rng) < config.riverMeanderChance);
 
-                // FORCE a meander if we've been straight too long
                 bool force_meander = (consecutive_straight >= max_consecutive_straight);
 
                 if (!straight_ok || wants_meander || force_meander)
                 {
-                    // Decide if we want a long horizontal segment or just 1-acre shift
                     bool wants_long_horizontal = (meander_chance(rng) < config.riverHorizontalChance);
                     int target_col_change = 1;
 
@@ -138,7 +142,6 @@ namespace cozy::world
                         target_col_change = horizontal_length(rng);
                     }
 
-                    // Try to move left or right by target_col_change
                     std::vector<int> candidates;
 
                     // Try moving right
@@ -173,7 +176,6 @@ namespace cozy::world
                             candidates.push_back(current_col - target_col_change);
                     }
 
-                    // If long horizontal didn't work, try single-step moves
                     if (candidates.empty())
                     {
                         if (current_col > 0 && CheckPathValid(town, az, current_col, current_col - 1))
@@ -186,22 +188,19 @@ namespace cozy::world
                     {
                         std::shuffle(candidates.begin(), candidates.end(), rng);
                         next_col = candidates[0];
-                        consecutive_straight = 0; // Reset counter when we meander
+                        consecutive_straight = 0;
                     }
                     else if (!force_meander)
                     {
-                        // Couldn't find valid meander, stay straight (but only if not forced)
                         consecutive_straight++;
                     }
                     else
                     {
-                        // Forced to meander but can't - stay straight anyway
                         consecutive_straight++;
                     }
                 }
                 else
                 {
-                    // Chose to stay straight
                     consecutive_straight++;
                 }
 
@@ -210,6 +209,7 @@ namespace cozy::world
             }
 
             const int total_height = Town::HEIGHT * Acre::SIZE;
+
             std::vector<int> river_center_x(total_height);
             for (int z = 0; z < total_height; ++z)
             {
@@ -222,10 +222,19 @@ namespace cozy::world
                 river_center_x[z] = target_col * Acre::SIZE + TownConfig::RIVER_CONNECTION_POINT_OFFSET;
             }
 
+            // Calculate where sand and ocean begin
+            const int ocean_acre_start_z = (Town::HEIGHT - 1) * Acre::SIZE;
+            const int sand_start_z = ocean_acre_start_z + 10;  // Row 10 of bottom acre
+            const int ocean_start_z = ocean_acre_start_z + 13; // Row 13 of bottom acre
+
+            // Carve the river through ALL acres (including into ocean)
             for (int z = 0; z < total_height; ++z)
             {
                 int center_x = river_center_x[z];
                 int center_z = z;
+
+                // Determine if this should be river mouth (only in sand/ocean area)
+                bool is_river_mouth = (z > sand_start_z);
 
                 if (z > 0 && (z % Acre::SIZE) == TownConfig::RIVER_CONNECTION_POINT_OFFSET)
                 {
@@ -235,12 +244,12 @@ namespace cozy::world
                         int dir = (center_x > prev_x) ? 1 : -1;
                         for (int x = prev_x; x != center_x + dir; x += dir)
                         {
-                            CarveRiverSection(town, x, z, halfWidth);
+                            CarveRiverSection(town, x, z, halfWidth, is_river_mouth);
                         }
                         continue;
                     }
                 }
-                CarveRiverSection(town, center_x, center_z, halfWidth);
+                CarveRiverSection(town, center_x, center_z, halfWidth, is_river_mouth);
             }
         }
     }

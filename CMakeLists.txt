@@ -85,6 +85,7 @@ add_executable(${PROJECT_NAME}
     # World & DS&A Systems
     src/world/generation/GenerationPipeline.cpp
     src/world/generation/steps/CliffGenerationStep.cpp
+    src/world/generation/steps/OceanGenerationStep.cpp
     src/world/generation/steps/RiverGenerationStep.cpp
     src/world/generation/steps/RampGenerationStep.cpp
     src/world/generation/steps/PondGenerationStep.cpp

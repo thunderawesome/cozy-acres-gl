@@ -1,5 +1,6 @@
 #include "Town.h"
 #include "generation/GenerationPipeline.h"
+#include "generation/steps/OceanGenerationStep.h"
 #include "generation/steps/CliffGenerationStep.h"
 #include "generation/steps/RiverGenerationStep.h"
 #include "generation/steps/RampGenerationStep.h"
@@ -66,6 +67,8 @@ namespace cozy::world
         // 2. Create and configure generation pipeline
         GenerationPipeline pipeline(*this);
 
+        // IMPORTANT: Ocean must be generated FIRST so river knows where to create the mouth
+        pipeline.AddStep(ocean::Execute);
         pipeline.AddStep(cliffs::Execute);
         pipeline.AddStep(rivers::Execute);
         pipeline.AddStep(ramps::Execute);
@@ -111,13 +114,39 @@ namespace cozy::world
                             }
                             else
                             {
-                                if (tile.type == TileType::WATER)
+                                // Top surface rendering
+                                if (tile.type == TileType::RIVER)
                                 {
+                                    // River water - flowing, lighter blue
                                     float depthShade = 1.0f - (y * 0.1f);
                                     inst.color = {
-                                        0.1f * depthShade,
-                                        0.4f * depthShade,
-                                        0.8f * depthShade};
+                                        0.12f * depthShade,
+                                        0.45f * depthShade,
+                                        0.85f * depthShade};
+                                }
+                                else if (tile.type == TileType::POND)
+                                {
+                                    // Pond water - still, slightly green-tinged
+                                    float depthShade = 1.0f - (y * 0.1f);
+                                    inst.color = {
+                                        0.08f * depthShade,
+                                        0.42f * depthShade,
+                                        0.75f * depthShade};
+                                }
+                                else if (tile.type == TileType::OCEAN)
+                                {
+                                    // Ocean - deep, dark blue
+                                    inst.color = {0.05f, 0.2f, 0.6f};
+                                }
+                                else if (tile.type == TileType::RIVER_MOUTH)
+                                {
+                                    // River mouth - transition between river and ocean
+                                    inst.color = {0.08f, 0.32f, 0.72f};
+                                }
+                                else if (tile.type == TileType::SAND)
+                                {
+                                    // Beach sand - warm tan/beige color
+                                    inst.color = {0.86f, 0.78f, 0.62f};
                                 }
                                 else if (tile.type == TileType::CLIFF)
                                 {
@@ -196,18 +225,50 @@ namespace cozy::world
 
                     // Always show the CURRENT tile's top surface
                     char symbol;
-                    if (tile.type == TileType::WATER)
+                    if (tile.type == TileType::OCEAN)
                     {
+                        symbol = '≈'; // Ocean waves (double wave)
+                    }
+                    else if (tile.type == TileType::SAND)
+                    {
+                        symbol = '░'; // Sand/beach
+                    }
+                    else if (tile.type == TileType::RIVER_MOUTH)
+                    {
+                        symbol = 'Δ'; // River delta
+                    }
+                    else if (tile.type == TileType::RIVER)
+                    {
+                        // River water with elevation distinction
                         switch (tile.elevation)
                         {
                         case 2:
-                            symbol = 'W';
+                            symbol = 'R'; // River on high plateau
                             break;
                         case 1:
-                            symbol = 'w';
+                            symbol = 'r'; // River on mid plateau
                             break;
                         case 0:
-                            symbol = '~';
+                            symbol = '~'; // River at ground level
+                            break;
+                        default:
+                            symbol = '?';
+                            break;
+                        }
+                    }
+                    else if (tile.type == TileType::POND)
+                    {
+                        // Pond water with elevation distinction
+                        switch (tile.elevation)
+                        {
+                        case 2:
+                            symbol = 'P'; // Pond on high plateau
+                            break;
+                        case 1:
+                            symbol = 'p'; // Pond on mid plateau
+                            break;
+                        case 0:
+                            symbol = 'o'; // Pond at ground level
                             break;
                         default:
                             symbol = '?';
@@ -230,7 +291,7 @@ namespace cozy::world
                             symbol = '^';
                             break;
                         case 1:
-                            symbol = 'o';
+                            symbol = 'o'; // Note: This conflicts with pond at level 0
                             break;
                         case 0:
                             symbol = '.';
@@ -255,17 +316,27 @@ namespace cozy::world
             std::cout << "+\n";
         }
 
-        // Legend
+        // Updated legend with all water types
         std::cout << "\nLegend:\n"
-                  << "  . = Ground / Beach (level 0)\n"
-                  << "  o = Mid Plateau (level 1)\n"
-                  << "  ^ = High Plateau (level 2)\n"
-                  << "  = = Mid-level Cliff Face\n"
-                  << "  # = High-level Cliff Face\n"
-                  << "  / = Ramp (upper portion, descending south)\n"
-                  << "  \\ = Ramp (lower portion, descending south)\n"
-                  << "  W = Water (High Plateau)\n"
-                  << "  w = Water (Mid Plateau)\n"
-                  << "  ~ = Water (Ground / Beach)\n\n";
+                  << "  Terrain:\n"
+                  << "    . = Ground / Beach (level 0)\n"
+                  << "    o = Mid Plateau (level 1) OR Pond (level 0)\n"
+                  << "    ^ = High Plateau (level 2)\n"
+                  << "    ░ = Sand (beach)\n"
+                  << "  Cliffs:\n"
+                  << "    = = Mid-level Cliff Face\n"
+                  << "    # = High-level Cliff Face\n"
+                  << "  Ramps:\n"
+                  << "    / = Ramp (upper portion, descending south)\n"
+                  << "    \\ = Ramp (lower portion, descending south)\n"
+                  << "  Water:\n"
+                  << "    ~ = River (level 0)\n"
+                  << "    r = River (level 1)\n"
+                  << "    R = River (level 2)\n"
+                  << "    o = Pond (level 0)\n"
+                  << "    p = Pond (level 1)\n"
+                  << "    P = Pond (level 2)\n"
+                  << "    Δ = River Mouth (delta)\n"
+                  << "    ≈ = Ocean\n\n";
     }
 }
