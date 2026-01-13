@@ -1,4 +1,3 @@
-// world/generation/steps/RiverGenerationStep.h
 #pragma once
 
 #include "world/Town.h"

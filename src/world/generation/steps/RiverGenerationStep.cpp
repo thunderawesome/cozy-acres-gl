@@ -1,4 +1,3 @@
-// world/generation/steps/RiverGenerationStep.cpp
 #include "RiverGenerationStep.h"
 
 #include "world/Town.h"
