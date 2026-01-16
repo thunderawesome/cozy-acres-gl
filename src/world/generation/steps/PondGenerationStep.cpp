@@ -17,8 +17,8 @@ namespace cozy::world
 {
     namespace ponds
     {
-        // Updated to count all water types and cliffs
-        int CountWaterAndCliffTiles(Town &town, int acre_x, int acre_y)
+        // Updated to count all water types, cliffs, and ramps
+        int CountWaterCliffRampTiles(Town &town, int acre_x, int acre_y)
         {
             int count = 0;
             auto &acre = town.GetAcre(acre_x, acre_y);
@@ -28,7 +28,9 @@ namespace cozy::world
                 for (int x = 0; x < Acre::SIZE; ++x)
                 {
                     auto &tile = acre.tiles[z][x];
-                    if (utils::IsAnyWater(tile.type) || tile.type == TileType::CLIFF)
+                    if (utils::IsAnyWater(tile.type) ||
+                        tile.type == TileType::CLIFF ||
+                        tile.type == TileType::RAMP)
                     {
                         count++;
                     }
@@ -43,8 +45,8 @@ namespace cozy::world
             struct AcreScore
             {
                 glm::ivec2 pos;
-                int water_cliff_count;
-                int neighbor_water_cliff_count;
+                int obstacle_count;
+                int neighbor_obstacle_count;
             };
 
             std::vector<AcreScore> candidates;
@@ -59,8 +61,8 @@ namespace cozy::world
                 {
                     AcreScore score;
                     score.pos = {ax, ay};
-                    score.water_cliff_count = CountWaterAndCliffTiles(town, ax, ay);
-                    score.neighbor_water_cliff_count = 0;
+                    score.obstacle_count = CountWaterCliffRampTiles(town, ax, ay);
+                    score.neighbor_obstacle_count = 0;
 
                     // Check neighboring acres (8-directional)
                     for (int dy = -1; dy <= 1; ++dy)
@@ -75,7 +77,7 @@ namespace cozy::world
 
                             if (nx >= 0 && nx < Town::WIDTH && ny >= 0 && ny < max_acre_y)
                             {
-                                score.neighbor_water_cliff_count += CountWaterAndCliffTiles(town, nx, ny);
+                                score.neighbor_obstacle_count += CountWaterCliffRampTiles(town, nx, ny);
                             }
                         }
                     }
@@ -84,13 +86,13 @@ namespace cozy::world
                 }
             }
 
-            // Sort by: 1) fewest water/cliff tiles in acre, 2) fewest in neighbors
+            // Sort by: 1) fewest obstacles in acre, 2) fewest in neighbors
             std::sort(candidates.begin(), candidates.end(),
                       [](const AcreScore &a, const AcreScore &b)
                       {
-                          if (a.water_cliff_count != b.water_cliff_count)
-                              return a.water_cliff_count < b.water_cliff_count;
-                          return a.neighbor_water_cliff_count < b.neighbor_water_cliff_count;
+                          if (a.obstacle_count != b.obstacle_count)
+                              return a.obstacle_count < b.obstacle_count;
+                          return a.neighbor_obstacle_count < b.neighbor_obstacle_count;
                       });
 
             // Return sorted list of acre positions
@@ -120,7 +122,7 @@ namespace cozy::world
                 return false;
             }
 
-            // Check if area contains ANY water or cliffs
+            // Check if area contains ANY water, cliffs, or ramps
             int check_radius = radius + 2;
             for (int z = center.y - check_radius; z <= center.y + check_radius; ++z)
             {
@@ -131,8 +133,10 @@ namespace cozy::world
                         auto [a, l] = town.WorldToTile({static_cast<float>(x), 0.f, static_cast<float>(z)});
                         auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
-                        // Reject if ANY water type or cliff is present
-                        if (utils::IsAnyWater(tile.type) || tile.type == TileType::CLIFF)
+                        // Reject if ANY water type, cliff, or ramp is present
+                        if (utils::IsAnyWater(tile.type) ||
+                            tile.type == TileType::CLIFF ||
+                            tile.type == TileType::RAMP)
                         {
                             return false;
                         }
@@ -165,12 +169,12 @@ namespace cozy::world
                             auto [a, l] = town.WorldToTile({static_cast<float>(x), 0.f, static_cast<float>(z)});
                             auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
-                            // Only paint over grass/empty tiles, never water or cliffs
+                            // Only paint over grass/empty tiles, never water, cliffs, or ramps
                             if (!utils::IsAnyWater(tile.type) &&
                                 tile.type != TileType::CLIFF &&
                                 tile.type != TileType::RAMP)
                             {
-                                tile.type = TileType::POND; // Use POND instead of WATER
+                                tile.type = TileType::POND;
                                 painted.insert(pos);
                             }
                         }

@@ -4,6 +4,7 @@
 #include "world/data/Acre.h"
 #include "world/data/Tile.h"
 #include "world/data/TownConfig.h"
+#include "world/generation/utils/WorldGenUtils.h"
 
 #include <vector>
 #include <algorithm>
@@ -23,42 +24,40 @@ namespace cozy::world
                 int score; // Higher is better
             };
 
-            // Fixed: Changed || to && - tile is walkable if it's NOT any of these types
+            // Tile is walkable if it's NOT water (cliffs are OK, they get cleared later)
             bool IsWalkable(const Tile &tile)
             {
-                return tile.type != TileType::RIVER &&
-                       tile.type != TileType::RIVER_MOUTH &&
-                       tile.type != TileType::OCEAN &&
-                       tile.type != TileType::POND;
+                return !utils::IsAnyWater(tile.type);
             }
 
-            // Updated to check for all water types
-            bool IsWaterNearby(const Town &town, int wx, int wz, int radius)
+            // Check for water nearby with adequate clearance for full ramp footprint
+            bool IsWaterNearby(
+                const Town &town,
+                int wx,
+                int wz,
+                const TownConfig &config)
             {
                 const int w = Town::WIDTH * Acre::SIZE;
                 const int h = Town::HEIGHT * Acre::SIZE;
 
-                for (int dz = -radius; dz <= radius; ++dz)
-                {
-                    for (int dx = -radius; dx <= radius; ++dx)
-                    {
-                        int cx = wx + dx;
-                        int cz = wz + dz;
+                // Check area covering full ramp plus buffer
+                int min_x = wx - TownConfig::RAMP_CORRIDOR_HALF_WIDTH - config.rampWaterClearance;
+                int max_x = wx + TownConfig::RAMP_CORRIDOR_HALF_WIDTH + config.rampWaterClearance;
+                int min_z = wz - config.rampWaterClearance;
+                int max_z = wz + TownConfig::RAMP_LENGTH + config.rampWaterClearance;
 
+                for (int cz = min_z; cz <= max_z; ++cz)
+                {
+                    for (int cx = min_x; cx <= max_x; ++cx)
+                    {
                         if (cx < 0 || cx >= w || cz < 0 || cz >= h)
                             continue;
 
                         auto [a, l] = town.WorldToTile({float(cx), 0.f, float(cz)});
                         const Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
-                        // Check for any water type
-                        if (tile.type == TileType::RIVER ||
-                            tile.type == TileType::RIVER_MOUTH ||
-                            tile.type == TileType::OCEAN ||
-                            tile.type == TileType::POND)
-                        {
+                        if (utils::IsAnyWater(tile.type))
                             return true;
-                        }
                     }
                 }
                 return false;
@@ -110,7 +109,8 @@ namespace cozy::world
                 int from_elevation,
                 int to_elevation,
                 int min_x,
-                int max_x)
+                int max_x,
+                const TownConfig &config)
             {
                 const int h = Town::HEIGHT * Acre::SIZE;
                 std::vector<RampCandidate> candidates;
@@ -122,7 +122,7 @@ namespace cozy::world
                         if (!CanPlaceRampHere(town, wx, wz, from_elevation, to_elevation))
                             continue;
 
-                        if (IsWaterNearby(town, wx, wz, 4))
+                        if (IsWaterNearby(town, wx, wz, config))
                             continue;
 
                         RampCandidate c;
@@ -162,7 +162,7 @@ namespace cozy::world
                     if (wz < 0 || wz >= h)
                         continue;
 
-                    for (int x = -2; x <= 2; ++x)
+                    for (int x = -TownConfig::RAMP_NORMALIZE_HALF_WIDTH; x <= TownConfig::RAMP_NORMALIZE_HALF_WIDTH; ++x)
                     {
                         int wx = center_x + x;
                         if (wx < 0 || wx >= w)
@@ -195,7 +195,7 @@ namespace cozy::world
                     if (wz < 0 || wz >= h)
                         continue;
 
-                    for (int x = -3; x <= 3; ++x)
+                    for (int x = -TownConfig::RAMP_CORRIDOR_HALF_WIDTH; x <= TownConfig::RAMP_CORRIDOR_HALF_WIDTH; ++x)
                     {
                         int wx = center_x + x;
                         if (wx < 0 || wx >= w)
@@ -215,7 +215,7 @@ namespace cozy::world
                 int center_x,
                 int center_z,
                 int from_elevation,
-                int ramp_length = 5)
+                int ramp_length)
             {
                 ClearCliffsInRampCorridor(town, center_x, center_z, ramp_length);
                 NormalizeRampSides(town, center_x, center_z, ramp_length, from_elevation);
@@ -259,13 +259,14 @@ namespace cozy::world
                 Town &town,
                 std::mt19937_64 &rng,
                 int from_elevation,
-                int to_elevation)
+                int to_elevation,
+                const TownConfig &config)
             {
                 const int w = Town::WIDTH * Acre::SIZE;
                 const int mid_x = w / 2;
 
-                auto west = FindRampCandidates(town, from_elevation, to_elevation, 0, mid_x);
-                auto east = FindRampCandidates(town, from_elevation, to_elevation, mid_x, w);
+                auto west = FindRampCandidates(town, from_elevation, to_elevation, 0, mid_x, config);
+                auto east = FindRampCandidates(town, from_elevation, to_elevation, mid_x, w, config);
 
                 auto by_score = [](auto &a, auto &b)
                 { return a.score > b.score; };
@@ -277,11 +278,11 @@ namespace cozy::world
                     if (candidates.empty())
                         return;
 
-                    int limit = std::min(3, (int)candidates.size());
+                    int limit = std::min(config.rampTopCandidates, (int)candidates.size());
                     std::uniform_int_distribution<int> pick(0, limit - 1);
                     auto &c = candidates[pick(rng)];
 
-                    CarveRamp(town, c.world_x, c.world_z, from_elevation);
+                    CarveRamp(town, c.world_x, c.world_z, from_elevation, TownConfig::RAMP_LENGTH);
                 };
 
                 place(west);
@@ -292,7 +293,7 @@ namespace cozy::world
         void Execute(
             Town &town,
             std::mt19937_64 &rng,
-            const TownConfig &)
+            const TownConfig &config)
         {
             const int w = Town::WIDTH * Acre::SIZE;
             const int h = Town::HEIGHT * Acre::SIZE;
@@ -310,10 +311,10 @@ namespace cozy::world
             }
 
             if (max_elevation >= 1)
-                PlaceRampsForTier(town, rng, 1, 0);
+                PlaceRampsForTier(town, rng, 1, 0, config);
 
             if (max_elevation >= 2)
-                PlaceRampsForTier(town, rng, 2, 1);
+                PlaceRampsForTier(town, rng, 2, 1, config);
         }
     }
 }

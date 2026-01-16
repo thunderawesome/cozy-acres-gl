@@ -28,14 +28,10 @@ namespace cozy::world
 
         // Coordinate helpers (very useful for all systems)
         std::pair<glm::ivec2, glm::ivec2> WorldToTile(glm::vec3 world_pos) const;
-        std::pair<glm::ivec2, glm::ivec2> WorldToAcre(glm::vec3 world_pos) const;
 
         // Low-level access (for generation steps)
         Acre &GetAcre(int ax, int az) { return m_acres[ax][az]; }
         const Acre &GetAcre(int ax, int az) const { return m_acres[ax][az]; }
-
-        Tile &GetTileWorld(int wx, int wz);
-        const Tile &GetTileWorld(int wx, int wz) const;
 
         int GetElevation(int wx, int wz) const;
 
