@@ -28,7 +28,7 @@ namespace cozy::app
           m_camera(std::make_unique<core::FreeCamera>(core::CameraConfig::FreeFlyPreset())),
           m_input(std::make_unique<core::InputSystem>(core::InputConfig::Default())),
           m_time(std::make_unique<core::TimeSystem>()),
-          m_lightManager(std::make_unique<rendering::LightManager>()) // NEW: Create light manager
+          m_lightManager(std::make_unique<rendering::LightManager>())
     {
         m_renderer->Initialize(m_window->GetNativeHandle());
 
@@ -70,7 +70,7 @@ namespace cozy::app
         // Configure directional light (sun)
         rendering::DirectionalLight sun;
         sun.direction = glm::vec3(-0.5f, -1.0f, -0.3f);
-        sun.color = glm::vec3(1.0f, 0.98f, 0.95f); // Warm sunlight
+        sun.color = glm::vec3(1.0f, 0.98f, 0.95f) * 1.5f; // Warm sunlight
         sun.ambient = 0.2f;
         sun.diffuse = 0.8f;
         sun.specular = 0.3f;
@@ -78,8 +78,8 @@ namespace cozy::app
 
         // Add point lights for visual interest
         rendering::PointLight light1;
-        light1.position = glm::vec3(20.0f, 30.0f, 20.0f);
-        light1.color = glm::vec3(1.0f, 0.9f, 0.7f); // Warm accent
+        light1.position = glm::vec3(20.0f, 25.0f, 20.0f);
+        light1.color = glm::vec3(1.0f, 0.9f, 0.7f) * 2.0f; // Warm accent
         light1.constant = 1.0f;
         light1.linear = 0.09f;
         light1.quadratic = 0.032f;
@@ -87,7 +87,7 @@ namespace cozy::app
 
         rendering::PointLight light2;
         light2.position = glm::vec3(60.0f, 25.0f, 60.0f);
-        light2.color = glm::vec3(0.7f, 0.9f, 1.0f); // Cool accent
+        light2.color = glm::vec3(0.7f, 0.9f, 1.0f) * 2.0f; // Cool accent
         light2.constant = 1.0f;
         light2.linear = 0.09f;
         light2.quadratic = 0.032f;
