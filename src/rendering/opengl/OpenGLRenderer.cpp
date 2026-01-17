@@ -1,5 +1,6 @@
-#include "OpenGLRenderer.h"
+#include "rendering/opengl/OpenGLRenderer.h"
 #include "rendering/opengl/OpenGLInstancedMesh.h"
+#include "rendering/LightManager.h"
 #include "core/graphics/IGpuResource.h"
 #include "core/camera/ICamera.h"
 #include <glad/glad.h>
@@ -14,14 +15,11 @@ namespace cozy::rendering
             std::cerr << "[OpenGLRenderer] Failed to initialize GLAD" << std::endl;
             return;
         }
-
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LEQUAL);
-
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
         glFrontFace(GL_CCW);
-
         std::cout << "[OpenGLRenderer] Context initialized (CCW Winding)" << std::endl;
     }
 
@@ -40,10 +38,8 @@ namespace cozy::rendering
         shader.Bind();
         shader.SetMat4("u_Model", modelMatrix);
         shader.SetMat4("u_View", camera.GetViewMatrix());
-
         float aspect = 1280.0f / 720.0f; // TODO: Pull from window config
         shader.SetMat4("u_Projection", camera.GetProjectionMatrix(aspect));
-
         glBindVertexArray(mesh.GetRendererID());
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)mesh.GetVertexCount());
         glBindVertexArray(0);
@@ -52,18 +48,28 @@ namespace cozy::rendering
     void OpenGLRenderer::DrawInstanced(
         const OpenGLInstancedMesh &mesh,
         const core::IShader &shader,
-        const core::ICamera &camera)
+        const core::ICamera &camera,
+        const LightManager *lights)
     {
         shader.Bind();
 
+        // Set camera uniforms
         float aspect = 1280.0f / 720.0f;
         shader.SetMat4("u_View", camera.GetViewMatrix());
         shader.SetMat4("u_Projection", camera.GetProjectionMatrix(aspect));
 
+        if (lights)
+        {
+            lights->ApplyToShader(shader, camera.GetPosition());
+        }
+
         mesh.Draw();
     }
 
-    void OpenGLRenderer::EndFrame() { /* SwapBuffers handled in Engine */ }
+    void OpenGLRenderer::EndFrame()
+    {
+        // SwapBuffers handled in Engine
+    }
 
     void OpenGLRenderer::SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
     {

@@ -12,7 +12,8 @@ namespace cozy::core
 
 namespace cozy::rendering
 {
-    class OpenGLInstancedMesh; // Forward declaration
+    class OpenGLInstancedMesh;
+    class LightManager;
 
     class IRenderer
     {
@@ -30,11 +31,12 @@ namespace cozy::rendering
             const glm::mat4 &modelMatrix,
             const core::ICamera &camera) = 0;
 
-        // New Instanced Drawing Method
+        // Added optional lights parameter
         virtual void DrawInstanced(
             const OpenGLInstancedMesh &mesh,
             const core::IShader &shader,
-            const core::ICamera &camera) = 0;
+            const core::ICamera &camera,
+            const LightManager *lights = nullptr) = 0;
 
         virtual void BindTexture(const core::ITexture &texture, uint32_t slot = 0) = 0;
     };

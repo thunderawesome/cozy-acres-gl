@@ -5,11 +5,11 @@ namespace cozy::rendering
 {
     struct DirectionalLight
     {
-        glm::vec3 direction{-0.2f, -1.0f, -0.3f};
-        glm::vec3 color{1.0f, 1.0f, 1.0f};
-        float ambient{0.1f};
-        float diffuse{0.8f};
-        float specular{0.5f};
+        glm::vec3 direction{0.0f, 0.0f, 0.0f};
+        glm::vec3 color{0.0f, 0.0f, 0.0f};
+        float ambient{0.0};
+        float diffuse{0.0f};
+        float specular{0.0f};
     };
 
     struct PointLight

@@ -81,6 +81,7 @@ add_executable(${PROJECT_NAME}
     src/rendering/opengl/OpenGLInstancedMesh.cpp
     src/rendering/opengl/OpenGLShader.cpp
     src/rendering/opengl/OpenGLTexture.cpp
+    src/rendering/LightManager.cpp
 
     # World & DS&A Systems
     src/world/generation/GenerationPipeline.cpp

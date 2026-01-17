@@ -8,6 +8,7 @@
 #include "rendering/opengl/OpenGLShader.h"
 #include "rendering/opengl/OpenGLTexture.h"
 #include "rendering/opengl/PrimitiveData.h"
+#include "rendering/LightManager.h"
 
 // Core & World
 #include "core/camera/FreeCamera.h"
@@ -26,7 +27,8 @@ namespace cozy::app
           m_renderer(std::make_unique<rendering::OpenGLRenderer>()),
           m_camera(std::make_unique<core::FreeCamera>(core::CameraConfig::FreeFlyPreset())),
           m_input(std::make_unique<core::InputSystem>(core::InputConfig::Default())),
-          m_time(std::make_unique<core::TimeSystem>())
+          m_time(std::make_unique<core::TimeSystem>()),
+          m_lightManager(std::make_unique<rendering::LightManager>())
     {
         m_renderer->Initialize(m_window->GetNativeHandle());
 
@@ -36,7 +38,6 @@ namespace cozy::app
 
         // 2. Town and Mesh setup
         m_town = std::make_unique<world::Town>();
-
         const float *cubeData = rendering::primitives::CubeVertices;
         size_t floatCount = sizeof(rendering::primitives::CubeVertices) / sizeof(float);
         m_townMesh = std::make_unique<rendering::OpenGLInstancedMesh>(cubeData, floatCount);
@@ -57,9 +58,41 @@ namespace cozy::app
         }
 
         m_testTexture = std::make_unique<rendering::OpenGLTexture>("placeholder.jpg");
+
+        // 4. Setup lighting
+        SetupLighting();
     }
 
     Engine::~Engine() = default;
+
+    void Engine::SetupLighting()
+    {
+        // Configure directional light (sun)
+        rendering::DirectionalLight sun;
+        sun.direction = glm::vec3(-0.5f, -1.0f, -0.3f);
+        sun.color = glm::vec3(1.0f, 0.98f, 0.95f) * 1.5f; // Warm sunlight
+        sun.ambient = 0.2f;
+        sun.diffuse = 0.8f;
+        sun.specular = 0.3f;
+        m_lightManager->SetDirectionalLight(sun);
+
+        // Add point lights for visual interest
+        rendering::PointLight light1;
+        light1.position = glm::vec3(20.0f, 25.0f, 20.0f);
+        light1.color = glm::vec3(1.0f, 0.9f, 0.7f) * 2.0f; // Warm accent
+        light1.constant = 1.0f;
+        light1.linear = 0.09f;
+        light1.quadratic = 0.032f;
+        m_lightManager->AddPointLight(light1);
+
+        rendering::PointLight light2;
+        light2.position = glm::vec3(60.0f, 25.0f, 60.0f);
+        light2.color = glm::vec3(0.7f, 0.9f, 1.0f) * 2.0f; // Cool accent
+        light2.constant = 1.0f;
+        light2.linear = 0.09f;
+        light2.quadratic = 0.032f;
+        m_lightManager->AddPointLight(light2);
+    }
 
     void Engine::RegenerateTown()
     {
@@ -88,11 +121,10 @@ namespace cozy::app
             m_time->Update();
             float deltaTime = m_time->GetDeltaTime();
 
-            // 1. Update Input (Handles Camera movement and Action edge detection)
+            // 1. Update Input
             m_input->Update(*m_window, *m_camera, deltaTime);
 
-            // 2. Handle Logic via Actions (Polished & Decoupled)
-            // Note: m_rKeyWasPressed is no longer needed here as the InputSystem handles state.
+            // 2. Handle Logic
             if (m_input->IsActionTriggered(core::InputAction::Regenerate))
             {
                 RegenerateTown();
@@ -104,11 +136,15 @@ namespace cozy::app
             if (m_townMesh && m_instancedShader)
             {
                 m_renderer->BindTexture(*m_testTexture, 0);
-                m_renderer->DrawInstanced(*m_townMesh, *m_instancedShader, *m_camera);
+
+                m_renderer->DrawInstanced(
+                    *m_townMesh,
+                    *m_instancedShader,
+                    *m_camera,
+                    m_lightManager.get());
             }
 
             m_renderer->EndFrame();
-
             m_window->SwapBuffers();
             m_window->PollEvents();
         }
