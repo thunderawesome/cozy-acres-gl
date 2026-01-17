@@ -49,6 +49,6 @@ install_manifest.txt
 
 # VS Code (personal settings ignored, useful ones shared)
 .vscode/*
-!.vscode/launch.json
-!.vscode/tasks.json
-!.vscode/extensions.json
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/extensions.json
