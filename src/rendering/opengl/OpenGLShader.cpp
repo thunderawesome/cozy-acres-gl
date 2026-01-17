@@ -1,5 +1,4 @@
-#include "OpenGLShader.h"
-#include <glad/glad.h>
+#include "rendering/opengl/OpenGLShader.h"
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 #include "shaders_embedded.h"
@@ -7,7 +6,9 @@
 namespace cozy::rendering
 {
     OpenGLShader::OpenGLShader()
-        : OpenGLShader(embedded_instanced_vert, embedded_instanced_frag) {}
+        : OpenGLShader(embedded_instanced_vert, embedded_instanced_frag)
+    {
+    }
 
     OpenGLShader::OpenGLShader(const char *vertexSource, const char *fragmentSource)
     {
@@ -31,24 +32,65 @@ namespace cozy::rendering
         glDeleteShader(fragment);
     }
 
-    OpenGLShader::~OpenGLShader() { glDeleteProgram(m_id); }
+    OpenGLShader::~OpenGLShader()
+    {
+        glDeleteProgram(m_id);
+    }
 
-    void OpenGLShader::Bind() const { glUseProgram(m_id); }
-    void OpenGLShader::Unbind() const { glUseProgram(0); }
+    void OpenGLShader::Bind() const
+    {
+        glUseProgram(m_id);
+    }
+
+    void OpenGLShader::Unbind() const
+    {
+        glUseProgram(0);
+    }
 
     void OpenGLShader::SetMat4(const std::string &name, const glm::mat4 &mat) const
     {
-        glUniformMatrix4fv(glGetUniformLocation(m_id, name.c_str()), 1, GL_FALSE, glm::value_ptr(mat));
+        glUniformMatrix4fv(GetUniformLocation(name), 1, GL_FALSE, glm::value_ptr(mat));
     }
 
     void OpenGLShader::SetVec3(const std::string &name, const glm::vec3 &val) const
     {
-        glUniform3fv(glGetUniformLocation(m_id, name.c_str()), 1, glm::value_ptr(val));
+        glUniform3fv(GetUniformLocation(name), 1, glm::value_ptr(val));
+    }
+
+    void OpenGLShader::SetVec4(const std::string &name, const glm::vec4 &val) const
+    {
+        glUniform4fv(GetUniformLocation(name), 1, glm::value_ptr(val));
     }
 
     void OpenGLShader::SetInt(const std::string &name, int val) const
     {
-        glUniform1i(glGetUniformLocation(m_id, name.c_str()), val);
+        glUniform1i(GetUniformLocation(name), val);
+    }
+
+    void OpenGLShader::SetFloat(const std::string &name, float val) const
+    {
+        glUniform1f(GetUniformLocation(name), val);
+    }
+
+    GLint OpenGLShader::GetUniformLocation(const std::string &name) const
+    {
+        // This is a significant performance optimization for complex shaders
+        auto it = m_uniformCache.find(name);
+        if (it != m_uniformCache.end())
+        {
+            return it->second;
+        }
+
+        GLint location = glGetUniformLocation(m_id, name.c_str());
+        m_uniformCache[name] = location;
+
+        // Optional: Uncomment for debugging missing uniforms
+        // if (location == -1)
+        // {
+        //     std::cerr << "Warning: uniform '" << name << "' not found in shader" << std::endl;
+        // }
+
+        return location;
     }
 
     void OpenGLShader::checkCompileErrors(uint32_t shader, const std::string &type)

@@ -7,12 +7,14 @@ namespace cozy::platform
 {
     class IWindow;
 }
+
 namespace cozy::core
 {
     class ICamera;
     class IInputSystem;
     class TimeSystem;
 }
+
 namespace cozy::rendering
 {
     class IRenderer;
@@ -20,6 +22,7 @@ namespace cozy::rendering
     class OpenGLShader;
     class OpenGLTexture;
     class OpenGLInstancedMesh;
+    class LightManager; // NEW: Forward declaration for lighting system
 }
 
 namespace cozy::app
@@ -41,11 +44,15 @@ namespace cozy::app
         // Test objects
         std::unique_ptr<rendering::OpenGLTexture> m_testTexture;
 
+        // Lighting system
+        std::unique_ptr<rendering::LightManager> m_lightManager;
+
         // Input State for debouncing
         bool m_rKeyWasPressed = false;
 
-        // Helper for map generation
+        // Helper methods
         void RegenerateTown();
+        void SetupLighting(); // Initialize lights
 
     public:
         Engine();
