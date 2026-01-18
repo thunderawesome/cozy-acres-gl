@@ -60,13 +60,13 @@ jobs:
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             echo "path=build/Release/${{ env.PROJECT_NAME }}.exe" >> $GITHUB_OUTPUT
-            echo "name=cozy-town-gl-windows.exe" >> $GITHUB_OUTPUT
+            echo "name=cozy-acres-gl-windows.exe" >> $GITHUB_OUTPUT
           elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
             echo "path=build/${{ env.PROJECT_NAME }}" >> $GITHUB_OUTPUT
-            echo "name=cozy-town-gl-linux" >> $GITHUB_OUTPUT
+            echo "name=cozy-acres-gl-linux" >> $GITHUB_OUTPUT
           else
             echo "path=build/${{ env.PROJECT_NAME }}" >> $GITHUB_OUTPUT
-            echo "name=cozy-town-gl-macos" >> $GITHUB_OUTPUT
+            echo "name=cozy-acres-gl-macos" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload executable (shaders embedded)
@@ -96,14 +96,14 @@ jobs:
         run: |
           mkdir -p release-zips
           # Windows
-          cp artifacts/executable-windows-latest/${{ env.PROJECT_NAME }}.exe release-zips/cozy-town-gl-windows.exe || true
-          cd release-zips && zip cozy-town-gl-windows.zip cozy-town-gl-windows.exe && cd -
+          cp artifacts/executable-windows-latest/${{ env.PROJECT_NAME }}.exe release-zips/cozy-acres-gl-windows.exe || true
+          cd release-zips && zip cozy-acres-gl-windows.zip cozy-acres-gl-windows.exe && cd -
           # Linux
-          cp artifacts/executable-ubuntu-latest/${{ env.PROJECT_NAME }} release-zips/cozy-town-gl-linux || true
-          cd release-zips && zip cozy-town-gl-linux.zip cozy-town-gl-linux && cd -
+          cp artifacts/executable-ubuntu-latest/${{ env.PROJECT_NAME }} release-zips/cozy-acres-gl-linux || true
+          cd release-zips && zip cozy-acres-gl-linux.zip cozy-acres-gl-linux && cd -
           # macOS
-          cp artifacts/executable-macos-latest/${{ env.PROJECT_NAME }} release-zips/cozy-town-gl-macos || true
-          cd release-zips && zip cozy-town-gl-macos.zip cozy-town-gl-macos && cd -
+          cp artifacts/executable-macos-latest/${{ env.PROJECT_NAME }} release-zips/cozy-acres-gl-macos || true
+          cd release-zips && zip cozy-acres-gl-macos.zip cozy-acres-gl-macos && cd -
 
       - name: Semantic Version Tagging (only on qualifying commits)
         id: tag
@@ -124,8 +124,8 @@ jobs:
           name: Cozy Town GL ${{ steps.tag.outputs.version_tag }}
           generate_release_notes: true
           files: |
-            release-zips/cozy-town-gl-windows.zip
-            release-zips/cozy-town-gl-linux.zip
-            release-zips/cozy-town-gl-macos.zip
+            release-zips/cozy-acres-gl-windows.zip
+            release-zips/cozy-acres-gl-linux.zip
+            release-zips/cozy-acres-gl-macos.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
