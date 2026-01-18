@@ -16,6 +16,7 @@ namespace cozy::core
         int keyExit{256};         // ESCAPE
         int keyToggleCursor{258}; // TAB
         int keyRegenerate{82};    // R
+        int keyToggleDebug{96};   // `
 
         int keySprint{340}; // LEFT_SHIFT
         int keyZoomIn{81};  // Q

@@ -17,7 +17,8 @@ namespace cozy::core
     {
         Regenerate,
         Exit,
-        ToggleCursor
+        ToggleCursor,
+        ToggleDebug
     };
 
     class IInputSystem

@@ -8,6 +8,7 @@
 #include "rendering/opengl/OpenGLShader.h"
 #include "rendering/opengl/OpenGLTexture.h"
 #include "rendering/opengl/PrimitiveData.h"
+#include "rendering/debug/DebugGizmoRenderer.h"
 #include "rendering/LightManager.h"
 
 // Core & World
@@ -18,6 +19,7 @@
 #include "world/Town.h"
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <glad/glad.h> // ADDED: For glDisable/glEnable
 #include <random>
 
 namespace cozy::app
@@ -30,6 +32,7 @@ namespace cozy::app
           m_time(std::make_unique<core::TimeSystem>()),
           m_lightManager(std::make_unique<rendering::LightManager>())
     {
+        // Initialize OpenGL context FIRST
         m_renderer->Initialize(m_window->GetNativeHandle());
 
         // 1. Camera setup
@@ -45,7 +48,7 @@ namespace cozy::app
         // Perform initial generation
         RegenerateTown();
 
-        // 3. Shader setup
+        // 3. Shader setup (AFTER OpenGL initialization)
         if (embedded_instanced_vert && embedded_instanced_frag)
         {
             m_instancedShader = std::make_unique<rendering::OpenGLShader>(
@@ -59,7 +62,17 @@ namespace cozy::app
 
         m_testTexture = std::make_unique<rendering::OpenGLTexture>("placeholder.jpg");
 
-        // 4. Setup lighting
+        // 4. Debug visualization setup (AFTER OpenGL initialization)
+        m_debugGizmos = std::make_unique<rendering::debug::DebugGizmoRenderer>();
+
+        if (embedded_debug_vert && embedded_debug_frag)
+        {
+            m_debugShader = std::make_unique<rendering::OpenGLShader>(
+                embedded_debug_vert,
+                embedded_debug_frag);
+        }
+
+        // 5. Setup lighting
         SetupLighting();
     }
 
@@ -78,7 +91,7 @@ namespace cozy::app
 
         // Add point lights for visual interest
         rendering::PointLight light1;
-        light1.position = glm::vec3(20.0f, 25.0f, 20.0f);
+        light1.position = glm::vec3(20.0f, 5.0f, 20.0f);
         light1.color = glm::vec3(1.0f, 0.9f, 0.7f) * 2.0f; // Warm accent
         light1.constant = 1.0f;
         light1.linear = 0.09f;
@@ -86,7 +99,7 @@ namespace cozy::app
         m_lightManager->AddPointLight(light1);
 
         rendering::PointLight light2;
-        light2.position = glm::vec3(60.0f, 25.0f, 60.0f);
+        light2.position = glm::vec3(60.0f, 5.0f, 60.0f);
         light2.color = glm::vec3(0.7f, 0.9f, 1.0f) * 2.0f; // Cool accent
         light2.constant = 1.0f;
         light2.linear = 0.09f;
@@ -130,6 +143,12 @@ namespace cozy::app
                 RegenerateTown();
             }
 
+            // Toggle debug gizmos
+            if (m_input->IsActionTriggered(core::InputAction::ToggleDebug))
+            {
+                m_showDebugGizmos = !m_showDebugGizmos;
+            }
+
             // 3. Rendering
             m_renderer->BeginFrame();
 
@@ -142,6 +161,20 @@ namespace cozy::app
                     *m_instancedShader,
                     *m_camera,
                     m_lightManager.get());
+            }
+
+            // Draw debug gizmos AFTER scene (on top)
+            if (m_showDebugGizmos && m_debugGizmos && m_debugShader)
+            {
+                // Disable depth test so gizmos are always visible
+                glDisable(GL_DEPTH_TEST);
+
+                m_debugGizmos->RenderLightGizmos(
+                    *m_lightManager,
+                    *m_debugShader,
+                    *m_camera);
+
+                glEnable(GL_DEPTH_TEST);
             }
 
             m_renderer->EndFrame();
