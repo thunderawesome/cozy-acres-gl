@@ -91,7 +91,7 @@ namespace cozy::app
 
         // Add point lights for visual interest
         rendering::PointLight light1;
-        light1.position = glm::vec3(20.0f, 5.0f, 20.0f);
+        light1.position = glm::vec3(20.0f, 15.0f, 20.0f);
         light1.color = glm::vec3(1.0f, 0.9f, 0.7f) * 2.0f; // Warm accent
         light1.constant = 1.0f;
         light1.linear = 0.09f;
@@ -99,7 +99,7 @@ namespace cozy::app
         m_lightManager->AddPointLight(light1);
 
         rendering::PointLight light2;
-        light2.position = glm::vec3(60.0f, 5.0f, 60.0f);
+        light2.position = glm::vec3(60.0f, 15.0f, 60.0f);
         light2.color = glm::vec3(0.7f, 0.9f, 1.0f) * 2.0f; // Cool accent
         light2.constant = 1.0f;
         light2.linear = 0.09f;
