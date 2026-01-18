@@ -56,7 +56,7 @@ namespace cozy::app
         // Debug visualization (CORRECTED)
         std::unique_ptr<rendering::debug::DebugGizmoRenderer> m_debugGizmos;
         std::unique_ptr<core::IShader> m_debugShader;
-        bool m_showDebugGizmos{true};
+        bool m_showDebugGizmos{false};
 
         // Helper methods
         void RegenerateTown();
