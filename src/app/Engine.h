@@ -13,6 +13,7 @@ namespace cozy::core
     class ICamera;
     class IInputSystem;
     class TimeSystem;
+    class IShader;
 }
 
 namespace cozy::rendering
@@ -22,7 +23,12 @@ namespace cozy::rendering
     class OpenGLShader;
     class OpenGLTexture;
     class OpenGLInstancedMesh;
-    class LightManager; // NEW: Forward declaration for lighting system
+    class LightManager;
+
+    namespace debug
+    {
+        class DebugGizmoRenderer;
+    }
 }
 
 namespace cozy::app
@@ -47,12 +53,14 @@ namespace cozy::app
         // Lighting system
         std::unique_ptr<rendering::LightManager> m_lightManager;
 
-        // Input State for debouncing
-        bool m_rKeyWasPressed = false;
+        // Debug visualization (CORRECTED)
+        std::unique_ptr<rendering::debug::DebugGizmoRenderer> m_debugGizmos;
+        std::unique_ptr<core::IShader> m_debugShader;
+        bool m_showDebugGizmos{false};
 
         // Helper methods
         void RegenerateTown();
-        void SetupLighting(); // Initialize lights
+        void SetupLighting();
 
     public:
         Engine();

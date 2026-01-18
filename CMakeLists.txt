@@ -83,6 +83,11 @@ add_executable(${PROJECT_NAME}
     src/rendering/opengl/OpenGLTexture.cpp
     src/rendering/LightManager.cpp
 
+    # Debug Gizmos
+    src/rendering/debug/DebugMesh.cpp
+    src/rendering/debug/DebugPrimitives.cpp
+    src/rendering/debug/DebugGizmoRenderer.cpp
+
     # World & DS&A Systems
     src/world/generation/GenerationPipeline.cpp
     src/world/generation/utils/WorldGenUtils.cpp
@@ -129,12 +134,13 @@ set(CMAKE_UTIL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 # Embed shaders
 # ------------------------------
 set(EMBEDDED_SHADERS_HEADER ${CMAKE_BINARY_DIR}/shaders_embedded.h)
-
 add_custom_command(
     OUTPUT ${EMBEDDED_SHADERS_HEADER}
     COMMAND ${CMAKE_COMMAND}
-        -D INPUT_VERT=${SHADER_DIR}/basic.vert
-        -D INPUT_FRAG=${SHADER_DIR}/basic.frag
+        -D INPUT_BASIC_VERT=${SHADER_DIR}/basic.vert
+        -D INPUT_BASIC_FRAG=${SHADER_DIR}/basic.frag
+        -D INPUT_DEBUG_VERT=${SHADER_DIR}/debug.vert
+        -D INPUT_DEBUG_FRAG=${SHADER_DIR}/debug.frag
         -D INPUT_INSTANCED_VERT=${SHADER_DIR}/instanced.vert
         -D INPUT_INSTANCED_FRAG=${SHADER_DIR}/instanced.frag 
         -D OUTPUT_HEADER=${EMBEDDED_SHADERS_HEADER}
@@ -142,12 +148,13 @@ add_custom_command(
     DEPENDS
         ${SHADER_DIR}/basic.vert
         ${SHADER_DIR}/basic.frag
+        ${SHADER_DIR}/debug.vert
+        ${SHADER_DIR}/debug.frag
         ${SHADER_DIR}/instanced.vert
         ${SHADER_DIR}/instanced.frag                      
         ${CMAKE_UTIL_DIR}/embed_shaders.cmake
     COMMENT "Embedding shaders from assets/shaders into C++ header"
 )
-
 add_custom_target(embed_shaders DEPENDS ${EMBEDDED_SHADERS_HEADER})
 add_dependencies(${PROJECT_NAME} embed_shaders)
 

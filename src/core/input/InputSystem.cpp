@@ -15,6 +15,7 @@ namespace cozy::core
         updateActionState(window, InputAction::Regenerate, m_config.keyRegenerate);
         updateActionState(window, InputAction::Exit, m_config.keyExit);
         updateActionState(window, InputAction::ToggleCursor, m_config.keyToggleCursor);
+        updateActionState(window, InputAction::ToggleDebug, m_config.keyToggleDebug);
 
         // 2. Handle Continuous Systems
         handleKeyboard(window, camera, deltaTime);
