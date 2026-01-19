@@ -8,6 +8,38 @@ namespace cozy::world::utils
         return t * t * (3.0f - 2.0f * t);
     }
 
+    // Simple 2D noise for organic edge variation
+    float Noise2D(int x, int z, int seed)
+    {
+        int n = x + z * 57 + seed * 131;
+        n = (n << 13) ^ n;
+        int nn = (n * (n * n * 60493 + 19990303) + 1376312589) & 0x7fffffff;
+        return 1.0f - (static_cast<float>(nn) / 1073741824.0f);
+    }
+
+    float SmoothNoise(float x, float z, int seed)
+    {
+        int ix = static_cast<int>(std::floor(x));
+        int iz = static_cast<int>(std::floor(z));
+
+        float fx = x - ix;
+        float fz = z - iz;
+
+        // Smoothstep
+        fx = fx * fx * (3.0f - 2.0f * fx);
+        fz = fz * fz * (3.0f - 2.0f * fz);
+
+        float v00 = Noise2D(ix, iz, seed);
+        float v10 = Noise2D(ix + 1, iz, seed);
+        float v01 = Noise2D(ix, iz + 1, seed);
+        float v11 = Noise2D(ix + 1, iz + 1, seed);
+
+        float v0 = v00 * (1.0f - fx) + v10 * fx;
+        float v1 = v01 * (1.0f - fx) + v11 * fx;
+
+        return v0 * (1.0f - fz) + v1 * fz;
+    }
+
     void CreateGrassTeardrop(
         Town &town,
         int ocean_acre_row,

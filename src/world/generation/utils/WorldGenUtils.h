@@ -33,6 +33,8 @@ namespace cozy::world::utils
     }
 
     float SmoothStep(float t);
+    float Noise2D(int x, int z, int seed);
+    float SmoothNoise(float x, float z, int seed);
 
     void CreateGrassTeardrop(
         Town &town,
