@@ -17,6 +17,7 @@ namespace cozy::world
     public:
         static constexpr int WIDTH = 5;
         static constexpr int HEIGHT = 7;
+        static constexpr int BEACH_ACRE_ROW = HEIGHT - 2; // Acre F
 
         Town() = default;
 

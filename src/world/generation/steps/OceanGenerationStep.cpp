@@ -20,7 +20,7 @@ namespace cozy::world
             std::mt19937_64 &rng,
             const TownConfig &config)
         {
-            const int ocean_acre_row = Town::HEIGHT - 2;
+            const int ocean_acre_row = Town::BEACH_ACRE_ROW;
             const int total_width = Town::WIDTH * Acre::SIZE;
 
             // Beach only applies to Acre F

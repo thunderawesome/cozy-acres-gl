@@ -16,9 +16,6 @@ namespace cozy::world
 {
     namespace rivers
     {
-        // Forward declarations
-        void CarveRiverSection(Town &town, int center_x, int center_z, int half_width);
-
         // Simple smoothstep function for rounded corners
         float SmoothStep(float t)
         {
@@ -174,7 +171,7 @@ namespace cozy::world
                                                         static_cast<float>(wz)});
                         Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
-                        // **NEW**: Skip OCEAN tiles entirely - ocean takes precedence
+                        // Skip OCEAN tiles entirely - ocean takes precedence
                         if (tile.type == TileType::OCEAN)
                             continue;
 
@@ -192,7 +189,7 @@ namespace cozy::world
         {
             const int total_w = Town::WIDTH * Acre::SIZE;
             const int total_h = Town::HEIGHT * Acre::SIZE;
-            const int ocean_acre_row = Town::HEIGHT - 2;
+            const int ocean_acre_row = Town::BEACH_ACRE_ROW;
 
             std::vector<int> mouth_x_coords;
             int mouth_z = -1;
@@ -241,7 +238,6 @@ namespace cozy::world
                 }
             }
 
-            // Create grass peninsulas at river mouth
             // 2. Spawn the rounded grass inlets (Teardrops)
             if (!mouth_x_coords.empty())
             {
@@ -268,9 +264,6 @@ namespace cozy::world
                                     // Optional: diamond shape (Manhattan distance) — looks more natural
                                     if (std::abs(dx) + std::abs(dz) > RADIUS)
                                         continue;
-
-                                    // Or full square (Chebyshev distance) — more uniform buffer
-                                    // if (std::max(std::abs(dx), std::abs(dz)) > RADIUS) continue;
 
                                     int nx = x + dx;
                                     int nz = z + dz;
@@ -414,7 +407,7 @@ namespace cozy::world
                 current_col = next_col;
             }
 
-            // Generate wiggle parameters (more subtle)
+            // Generate river wiggle
             std::uniform_real_distribution<float> amplitude_dist(0.5f, 1.2f);
             std::uniform_real_distribution<float> frequency_dist(0.08f, 0.15f);
             std::uniform_real_distribution<float> phase_dist(0.0f, 6.28318f);
