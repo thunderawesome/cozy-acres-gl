@@ -20,8 +20,11 @@ namespace cozy::world
             std::mt19937_64 &rng,
             const TownConfig &config)
         {
-            const int ocean_acre_row = Town::HEIGHT - 1;
+            const int ocean_acre_row = Town::HEIGHT - 2;
             const int total_width = Town::WIDTH * Acre::SIZE;
+
+            // Beach only applies to Acre F
+            const int max_beach_acre = 5;
 
             // 1. Sine Wave Parameters
             std::uniform_real_distribution<float> phase_dist(0.0f, 6.28318f);
@@ -34,7 +37,7 @@ namespace cozy::world
 
             std::vector<int> sand_boundary(total_width);
 
-            // 2. Calculate wavy beach boundary
+            // 2. Calculate wavy beach boundary (only needed for beach acres)
             for (int x = 0; x < total_width; ++x)
             {
                 float wave = std::sin(x * beach_freq + beach_phase) * beach_amp;
@@ -42,8 +45,8 @@ namespace cozy::world
                 sand_boundary[x] = std::clamp(base, 7, 12);
             }
 
-            // 3. Fill with sand and ocean (Base Layer)
-            for (int acre_x = 0; acre_x < Town::WIDTH; ++acre_x)
+            // 3. Fill beach/ocean ONLY for acres F
+            for (int acre_x = 0; acre_x <= max_beach_acre && acre_x < Town::WIDTH; ++acre_x)
             {
                 Acre &acre = town.GetAcre(acre_x, ocean_acre_row);
 
@@ -72,10 +75,28 @@ namespace cozy::world
                 }
             }
 
-            // 4. Find river-mouth acres on the ocean row
+            // 3.5. Make all ACRES BEYOND F VERTICALLY (acre_z >= 6) pure ocean water
+            const int first_ocean_acre_z = 6; // Acre G and beyond VERTICALLY
+            for (int acre_z = first_ocean_acre_z; acre_z < Town::HEIGHT; ++acre_z)
+            {
+                for (int acre_x = 0; acre_x < Town::WIDTH; ++acre_x) // All X columns
+                {
+                    Acre &acre = town.GetAcre(acre_x, acre_z);
+                    for (int local_z = 0; local_z < Acre::SIZE; ++local_z)
+                    {
+                        for (int local_x = 0; local_x < Acre::SIZE; ++local_x)
+                        {
+                            acre.tiles[local_z][local_x].type = TileType::OCEAN;
+                            acre.tiles[local_z][local_x].elevation = 0;
+                        }
+                    }
+                }
+            }
+
+            // 4. Find river-mouth acres on the ocean row (ONLY check beach acres for blob placement)
             std::vector<bool> acre_has_mouth(Town::WIDTH, false);
 
-            for (int acre_x = 0; acre_x < Town::WIDTH; ++acre_x)
+            for (int acre_x = 0; acre_x <= max_beach_acre && acre_x < Town::WIDTH; ++acre_x)
             {
                 Acre &acre = town.GetAcre(acre_x, ocean_acre_row);
                 bool found = false;
@@ -93,12 +114,12 @@ namespace cozy::world
                 }
             }
 
-            // 5. Build candidate acres for the blob (no mouth, not near world bounds)
+            // 5. Build candidate acres for the blob (ONLY beach acres A-F, no mouth, not near bounds)
             std::vector<int> candidate_acres;
-            const int min_acre_x = 1;               // avoid very left edge
-            const int max_acre_x = Town::WIDTH - 2; // avoid very right edge
+            const int min_acre_x = 1;                                            // avoid very left edge
+            const int max_blob_acre = std::min(max_beach_acre, Town::WIDTH - 2); // stay in beach zone
 
-            for (int acre_x = min_acre_x; acre_x <= max_acre_x; ++acre_x)
+            for (int acre_x = min_acre_x; acre_x <= max_blob_acre; ++acre_x)
             {
                 if (!acre_has_mouth[acre_x])
                 {
@@ -108,15 +129,15 @@ namespace cozy::world
 
             if (!candidate_acres.empty())
             {
-                // 6. Choose one acre at random
+                // 6. Choose one acre at random (guaranteed to be in beach zone A-F)
                 std::uniform_int_distribution<int> cand_dist(0, (int)candidate_acres.size() - 1);
                 int chosen_acre_x = candidate_acres[cand_dist(rng)];
 
                 // World-space X center: middle of chosen acre
                 int center_x = chosen_acre_x * Acre::SIZE + Acre::SIZE / 2;
 
-                // Clamp X center further away from world bounds if you want extra safety
-                const int margin_tiles = 4; // do not let center be too close to world edges
+                // Clamp X center further away from world bounds
+                const int margin_tiles = 4;
                 center_x = std::clamp(center_x, margin_tiles, total_width - 1 - margin_tiles);
 
                 // Place the blob around the sand/grass boundary at this column
@@ -126,17 +147,13 @@ namespace cozy::world
                 int start_z_local = sand_here - 2;
 
                 // Rounded, autotile-friendly blob: width ≈ depth, slight bend
-                std::uniform_int_distribution<int> width_dist(7, 8); // diameters
+                std::uniform_int_distribution<int> width_dist(7, 8);
                 std::uniform_int_distribution<int> depth_dist(6, 8);
-                std::uniform_int_distribution<int> curve_sign_dist(0, 1); // 0 = negative, 1 = positive
+                std::uniform_int_distribution<int> curve_sign_dist(0, 1);
 
                 const int blob_width = width_dist(rng);
                 const int blob_depth = depth_dist(rng);
-
-                // Magnitude of curve (tweak 0.5f–1.5f to taste)
                 const float curve_magnitude = 1.0f;
-
-                // Randomly choose left or right bend
                 const float blob_curve = curve_sign_dist(rng) == 0 ? -curve_magnitude : curve_magnitude;
 
                 utils::CreateGrassTeardrop(
@@ -150,6 +167,5 @@ namespace cozy::world
                     total_width);
             }
         }
-
     }
 }

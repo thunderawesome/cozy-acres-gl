@@ -174,11 +174,15 @@ namespace cozy::world
                                                         static_cast<float>(wz)});
                         Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
-                        const TileType t = tile.type;
-                        const bool is_river_mouth =
-                            (t == TileType::SAND || t == TileType::OCEAN);
+                        // **NEW**: Skip OCEAN tiles entirely - ocean takes precedence
+                        if (tile.type == TileType::OCEAN)
+                            continue;
 
-                        tile.type = is_river_mouth ? TileType::RIVER_MOUTH : TileType::RIVER;
+                        const TileType t = tile.type;
+                        const bool is_beach = (t == TileType::SAND);
+
+                        // Only carve non-ocean tiles
+                        tile.type = is_beach ? TileType::RIVER_MOUTH : TileType::RIVER;
                     }
                 }
             }
@@ -188,7 +192,7 @@ namespace cozy::world
         {
             const int total_w = Town::WIDTH * Acre::SIZE;
             const int total_h = Town::HEIGHT * Acre::SIZE;
-            const int ocean_acre_row = Town::HEIGHT - 1;
+            const int ocean_acre_row = Town::HEIGHT - 2;
 
             std::vector<int> mouth_x_coords;
             int mouth_z = -1;
@@ -241,51 +245,8 @@ namespace cozy::world
             // 2. Spawn the rounded grass inlets (Teardrops)
             if (!mouth_x_coords.empty())
             {
-                auto [min_x_it, max_x_it] = std::minmax_element(
-                    mouth_x_coords.begin(), mouth_x_coords.end());
-                int river_min_x = *min_x_it;
-                int river_max_x = *max_x_it;
-
-                // Randomized dimensions for refined, rounded "ears"
-                std::uniform_int_distribution<int> ear_width_dist(6, 8); // diameters
-                std::uniform_int_distribution<int> ear_depth_dist(6, 8);
-
-                // Left ear params
-                int left_width = ear_width_dist(rng);
-                int left_depth = ear_depth_dist(rng);
-
-                // Right ear params
-                int right_width = ear_width_dist(rng);
-                int right_depth = ear_depth_dist(rng);
-
-                // Centers: push away from river by ~half their own width
-                int left_drop_center = river_min_x - (left_width / 2);
-                int right_drop_center = river_max_x + (right_width / 2);
-
                 // Start higher up to tuck the base under mainland grass
                 int start_z_local = (mouth_z % Acre::SIZE) - 2;
-
-                // Left Bank Inlet (bend left / away from river)
-                utils::CreateGrassTeardrop(
-                    town,
-                    ocean_acre_row,
-                    left_drop_center,
-                    start_z_local,
-                    left_width,
-                    left_depth,
-                    -1.0f, // fixed curve, negative for left side
-                    total_w);
-
-                // Right Bank Inlet (bend right / away from river)
-                utils::CreateGrassTeardrop(
-                    town,
-                    ocean_acre_row,
-                    right_drop_center,
-                    start_z_local,
-                    right_width,
-                    right_depth,
-                    1.0f, // fixed curve, positive for right side
-                    total_w);
 
                 // 3. Cleanup Pass: Prevent sand/river contact and isolated sand pockets
                 for (int z = 0; z < total_h; ++z)
@@ -295,21 +256,36 @@ namespace cozy::world
                         auto [a, l] = utils::GetTileCoords(x, z);
                         Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
-                        // Remove Sand touching the River/Mouth
+                        // Remove Sand touching the River/Mouth — expanded to ~3 tiles radius
                         if (tile.type == TileType::RIVER || tile.type == TileType::RIVER_MOUTH)
                         {
-                            const int n_off[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-                            for (auto &off : n_off)
-                            {
-                                int nx = x + off[0], nz = z + off[1];
-                                if (nx < 0 || nx >= total_w || nz < 0 || nz >= total_h)
-                                    continue;
+                            const int RADIUS = 3;
 
-                                auto [na, nl] = utils::GetTileCoords(nx, nz);
-                                Tile &nTile = town.GetAcre(na.x, na.y).tiles[nl.y][nl.x];
-                                if (nTile.type == TileType::SAND)
+                            for (int dz = -RADIUS; dz <= RADIUS; ++dz)
+                            {
+                                for (int dx = -RADIUS; dx <= RADIUS; ++dx)
                                 {
-                                    nTile.type = TileType::GRASS;
+                                    // Optional: diamond shape (Manhattan distance) — looks more natural
+                                    if (std::abs(dx) + std::abs(dz) > RADIUS)
+                                        continue;
+
+                                    // Or full square (Chebyshev distance) — more uniform buffer
+                                    // if (std::max(std::abs(dx), std::abs(dz)) > RADIUS) continue;
+
+                                    int nx = x + dx;
+                                    int nz = z + dz;
+
+                                    if (nx < 0 || nx >= total_w || nz < 0 || nz >= total_h)
+                                        continue;
+
+                                    auto [na, nl] = utils::GetTileCoords(nx, nz);
+                                    Tile &nTile = town.GetAcre(na.x, na.y).tiles[nl.y][nl.x];
+
+                                    if (nTile.type == TileType::SAND)
+                                    {
+                                        nTile.type = TileType::GRASS;
+                                        nTile.elevation = 0; // keep it flat
+                                    }
                                 }
                             }
                         }

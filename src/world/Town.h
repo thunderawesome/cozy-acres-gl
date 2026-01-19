@@ -16,7 +16,7 @@ namespace cozy::world
     {
     public:
         static constexpr int WIDTH = 5;
-        static constexpr int HEIGHT = 6;
+        static constexpr int HEIGHT = 7;
 
         Town() = default;
 
