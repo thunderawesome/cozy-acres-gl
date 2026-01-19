@@ -160,20 +160,46 @@ namespace cozy::world
 
                     if (wx >= 0 && wx < w && wz >= 0 && wz < h)
                     {
-                        auto [a, l] = town.WorldToTile({static_cast<float>(wx),
-                                                        0.f,
-                                                        static_cast<float>(wz)});
+                        auto [a, l] = town.WorldToTile({static_cast<float>(wx), 0.f, static_cast<float>(wz)});
                         Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
-                        // Skip OCEAN tiles entirely - ocean takes precedence
                         if (tile.type == TileType::OCEAN)
                             continue;
 
-                        const TileType t = tile.type;
-                        const bool is_beach = (t == TileType::SAND);
+                        // 1. Detect Waterfall: Check if an adjacent tile is at a lower elevation
+                        bool is_cliff_drop = false;
+                        const int neighbor_offsets[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 
-                        // Only carve non-ocean tiles
-                        tile.type = is_beach ? TileType::RIVER_MOUTH : TileType::RIVER;
+                        for (auto &off : neighbor_offsets)
+                        {
+                            int nx = wx + off[0];
+                            int nz = wz + off[1];
+
+                            if (nx >= 0 && nx < w && nz >= 0 && nz < h)
+                            {
+                                int neighbor_elev = town.GetElevation(nx, nz);
+                                // If current tile is higher than neighbor, it's a potential waterfall edge
+                                if (tile.elevation > neighbor_elev && neighbor_elev != -1)
+                                {
+                                    is_cliff_drop = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // 2. Assignment Logic
+                        if (is_cliff_drop || tile.type == TileType::CLIFF)
+                        {
+                            tile.type = TileType::WATERFALL;
+                        }
+                        else if (tile.type == TileType::SAND)
+                        {
+                            tile.type = TileType::RIVER_MOUTH;
+                        }
+                        else
+                        {
+                            tile.type = TileType::RIVER;
+                        }
                     }
                 }
             }
@@ -402,9 +428,9 @@ namespace cozy::world
             }
 
             // Generate river wiggle
-            std::uniform_real_distribution<float> amplitude_dist(0.5f, 1.2f);
-            std::uniform_real_distribution<float> frequency_dist(0.08f, 0.15f);
-            std::uniform_real_distribution<float> phase_dist(0.0f, 6.28318f);
+            std::uniform_real_distribution<float> amplitude_dist(1.35f, 1.4f);
+            std::uniform_real_distribution<float> frequency_dist(0.35f, 0.55f);
+            std::uniform_real_distribution<float> phase_dist(0.0f, 1.28318f);
 
             const float wiggle_amplitude = amplitude_dist(rng);
             const float wiggle_frequency = frequency_dist(rng);
