@@ -25,6 +25,7 @@ namespace cozy::world
 
         // Debug & Rendering
         void DebugDump() const;
+        glm::vec3 GetTileColor(const Tile &tile, int y) const;
         std::vector<rendering::TileInstance> GenerateRenderData() const;
 
         // Coordinate helpers (very useful for all systems)

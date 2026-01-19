@@ -67,7 +67,6 @@ namespace cozy::world
         // 2. Create and configure generation pipeline
         GenerationPipeline pipeline(*this);
 
-        // IMPORTANT: Ocean must be generated FIRST so river knows where to create the mouth
         pipeline.AddStep(ocean::Execute);
         pipeline.AddStep(cliffs::Execute);
         pipeline.AddStep(rivers::Execute);
@@ -82,25 +81,63 @@ namespace cozy::world
         std::cout << "Generation completed - seed: " << seed << "\n";
     }
 
+    glm::vec3 Town::GetTileColor(const Tile &tile, int y) const
+    {
+        float depthShade = 1.0f - (y * 0.1f);
+        float elevationLight = 0.5f + (y * 0.15f);
+
+        switch (tile.type)
+        {
+        case TileType::RIVER:
+            return {0.12f * depthShade, 0.45f * depthShade, 0.85f * depthShade};
+
+        case TileType::POND:
+            return {0.08f * depthShade, 0.42f * depthShade, 0.75f * depthShade};
+
+        case TileType::WATERFALL:
+            return {0.28f * depthShade, 0.72f * depthShade, 0.95f * depthShade};
+
+        case TileType::OCEAN:
+            return {0.05f * depthShade, 0.2f * depthShade, 0.6f * depthShade};
+
+        case TileType::RIVER_MOUTH:
+            return {0.08f, 0.32f, 0.72f};
+
+        case TileType::SAND:
+            return {0.86f, 0.78f, 0.62f};
+
+        case TileType::CLIFF:
+            return {0.5f, 0.45f, 0.4f};
+
+        case TileType::RAMP:
+            return {0.55f * elevationLight, 0.50f * elevationLight, 0.35f * elevationLight};
+
+        case TileType::GRASS:
+        default:
+            return {0.3f * elevationLight, 0.6f * elevationLight, 0.2f * elevationLight};
+        }
+    }
+
     // ── Generate render data ──────────────────────────
     std::vector<rendering::TileInstance> Town::GenerateRenderData() const
     {
         std::vector<rendering::TileInstance> instances;
         instances.reserve(WIDTH * HEIGHT * Acre::SIZE * Acre::SIZE * 2);
 
-        for (int ax = 0; ax < WIDTH; ++ax)
+        for (int ax = 0; ax < WIDTH; ++ax) // Rows (A, B, C...)
         {
-            for (int ay = 0; ay < HEIGHT; ++ay)
+            for (int az = 0; az < HEIGHT; ++az) // Columns (1, 2, 3...)
             {
-                for (int ly = 0; ly < Acre::SIZE; ++ly)
+                for (int lx = 0; lx < Acre::SIZE; ++lx)
                 {
-                    for (int lx = 0; lx < Acre::SIZE; ++lx)
+                    for (int lz = 0; lz < Acre::SIZE; ++lz)
                     {
-                        const Tile &tile = m_acres[ax][ay].tiles[ly][lx];
+                        const Tile &tile = m_acres[ax][az].tiles[lz][lx];
 
                         float worldX = static_cast<float>(ax * Acre::SIZE + lx);
-                        float worldZ = static_cast<float>(ay * Acre::SIZE + ly);
+                        float worldZ = static_cast<float>(az * Acre::SIZE + lz);
 
+                        // Generate geometry for the surface and dirt filler below
                         for (int y = 0; y <= tile.elevation; ++y)
                         {
                             rendering::TileInstance inst;
@@ -114,60 +151,8 @@ namespace cozy::world
                             }
                             else
                             {
-                                // Top surface rendering
-                                if (tile.type == TileType::RIVER)
-                                {
-                                    // River water - flowing, lighter blue
-                                    float depthShade = 1.0f - (y * 0.1f);
-                                    inst.color = {
-                                        0.12f * depthShade,
-                                        0.45f * depthShade,
-                                        0.85f * depthShade};
-                                }
-                                else if (tile.type == TileType::POND)
-                                {
-                                    // Pond water - still, slightly green-tinged
-                                    float depthShade = 1.0f - (y * 0.1f);
-                                    inst.color = {
-                                        0.08f * depthShade,
-                                        0.42f * depthShade,
-                                        0.75f * depthShade};
-                                }
-                                else if (tile.type == TileType::OCEAN)
-                                {
-                                    // Ocean - deep, dark blue
-                                    inst.color = {0.05f, 0.2f, 0.6f};
-                                }
-                                else if (tile.type == TileType::RIVER_MOUTH)
-                                {
-                                    // River mouth - transition between river and ocean
-                                    inst.color = {0.08f, 0.32f, 0.72f};
-                                }
-                                else if (tile.type == TileType::SAND)
-                                {
-                                    // Beach sand - warm tan/beige color
-                                    inst.color = {0.86f, 0.78f, 0.62f};
-                                }
-                                else if (tile.type == TileType::CLIFF)
-                                {
-                                    inst.color = {0.5f, 0.45f, 0.4f};
-                                }
-                                else if (tile.type == TileType::RAMP)
-                                {
-                                    float elevationLight = 0.5f + (y * 0.15f);
-                                    inst.color = {
-                                        0.55f * elevationLight, // Sandy/dirt color for ramps
-                                        0.50f * elevationLight,
-                                        0.35f * elevationLight};
-                                }
-                                else // GRASS
-                                {
-                                    float elevationLight = 0.5f + (y * 0.15f);
-                                    inst.color = {
-                                        0.3f * elevationLight,
-                                        0.6f * elevationLight,
-                                        0.2f * elevationLight};
-                                }
+                                // Surface coloring logic
+                                inst.color = GetTileColor(tile, y);
                             }
 
                             inst.padding = 0.0f;
@@ -177,7 +162,6 @@ namespace cozy::world
                 }
             }
         }
-
         return instances;
     }
 
@@ -192,12 +176,13 @@ namespace cozy::world
         {
             std::string label = "Acre " + std::to_string(ax + 1);
             std::cout << label;
-            for (size_t i = label.length(); i < 17; ++i)
+            int label_spacing = 17;
+            for (size_t i = label.length(); i < label_spacing; ++i)
                 std::cout << " ";
         }
         std::cout << "\n";
 
-        std::cout << "    +";
+        std::cout << "  +";
         for (int i = 0; i < TOTAL_WIDTH + WIDTH; ++i)
             std::cout << "-";
         std::cout << "+\n";
@@ -212,9 +197,9 @@ namespace cozy::world
                 int z = az * Acre::SIZE + local_z;
 
                 if (local_z == 0)
-                    std::cout << rowLetter << rowLetter << " | ";
+                    std::cout << rowLetter << " | ";
                 else
-                    std::cout << "   | ";
+                    std::cout << "  | ";
 
                 for (int x = 0; x < TOTAL_WIDTH; ++x)
                 {
@@ -234,6 +219,9 @@ namespace cozy::world
                     case TileType::RIVER_MOUTH:
                         symbol = 'M';
                         break; // 'M' for Mouth
+                    case TileType::WATERFALL:
+                        symbol = 'V';
+                        break; // 'V' for Waterfall
                     case TileType::RIVER:
                         if (tile.elevation == 2)
                             symbol = 'R';
@@ -248,7 +236,7 @@ namespace cozy::world
                         else if (tile.elevation == 1)
                             symbol = 'p';
                         else
-                            symbol = 'o'; // 'o' is now unique to ground ponds
+                            symbol = 'o';
                         break;
                     case TileType::CLIFF:
                         symbol = (tile.elevation == 2) ? '#' : '=';
@@ -260,7 +248,7 @@ namespace cozy::world
                         if (tile.elevation == 2)
                             symbol = '^'; // Peak
                         else if (tile.elevation == 1)
-                            symbol = '+'; // Mid-level (Fixes 'o' conflict)
+                            symbol = ';'; // Mid-level
                         else
                             symbol = '.'; // Ground
                         break;
@@ -274,7 +262,7 @@ namespace cozy::world
                 std::cout << "\n";
             }
 
-            std::cout << "    +";
+            std::cout << "  +";
             for (int i = 0; i < TOTAL_WIDTH + WIDTH; ++i)
                 std::cout << "-";
             std::cout << "+\n";
@@ -283,12 +271,12 @@ namespace cozy::world
         // Legend
         std::cout << "\nLegend:\n"
                   << "  Terrain:\n"
-                  << "    . = Grass (Lvl 0)    + = Grass (Lvl 1)    ^ = Grass (Lvl 2)\n"
+                  << "    . = Grass (Lvl 0)    ; = Grass (Lvl 1)    ^ = Grass (Lvl 2)\n"
                   << "    s = Sand (Beach)     W = Ocean\n"
                   << "  Water:\n"
                   << "    ~ = River (Lvl 0)    r = River (Lvl 1)    R = River (Lvl 2)\n"
                   << "    o = Pond (Lvl 0)     p = Pond (Lvl 1)     P = Pond (Lvl 2)\n"
-                  << "    M = River Mouth\n"
+                  << "    M = River Mouth      V = Waterfall\n"
                   << "  Vertical:\n"
                   << "    = = Mid Cliff        # = High Cliff\n"
                   << "    / , \\ = Ramps\n\n";
