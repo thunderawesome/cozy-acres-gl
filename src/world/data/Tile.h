@@ -11,7 +11,8 @@ namespace cozy::world
         SAND,
 
         // Water types - keeping them grouped for clarity
-        RIVER,       // Flowing river water (north-south)
+        RIVER, // Flowing river water (north-south)
+        WATERFALL,
         POND,        // Still pond water
         OCEAN,       // Ocean at southern edge
         RIVER_MOUTH, // Where river meets ocean (delta/estuary)
