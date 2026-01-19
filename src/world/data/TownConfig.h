@@ -5,9 +5,11 @@ namespace cozy::world
     struct TownConfig
     {
         // Cliff parameters
-        float cliffSmoothness = 0.25f; // 0.0 = sharp → 1.0 = very smooth transitions
-        int minPlateauRow = 1;         // Usually row B (0-based)
-        int maxPlateauRow = 4;         // Usually row E
+        int cliffVariationAmount = 3; // In tiles, for organic edges
+        int cliffSmoothIterations = 3;
+        static constexpr float CLIFF_NOISE_SCALE = 0.15f;
+        int minPlateauRow = 1; // Usually row B (0-based)
+        int maxPlateauRow = 4; // Usually row E
         int minHighPlateauRowOffset = 1;
         int maxHighPlateauRowOffset = 2;
         float highPlateauChance = 0.75f; // 0.0f-1.0f - Probability of having the third (highest) tier
