@@ -5,57 +5,114 @@ namespace cozy::world::utils
     void CreateGrassTeardrop(
         Town &town,
         int ocean_acre_row,
-        int center_x,
-        int start_z,
-        int max_width,
-        int depth,
-        float curve_amount,
-        int total_width)
+        int center_x,    // world tile X
+        int start_z,     // local Z in ocean acre where blob starts (top of blob)
+        int max_width,   // X diameter in tiles
+        int depth,       // Z diameter in tiles
+        float curve,     // negative = bend left, positive = bend right, 0 = symmetric
+        int total_width) // world width in tiles
     {
-        for (int dz = 0; dz <= depth; ++dz)
-        {
-            int local_z = start_z + dz;
+        const int world_h = Town::HEIGHT * Acre::SIZE;
 
-            if (local_z < 0 || local_z >= Acre::SIZE)
+        // Semi-axes (in tiles)
+        const float rx = max_width * 0.5f;
+        const float rz = depth * 0.5f;
+
+        // World-space Z center
+        const int acre_z0 = ocean_acre_row * Acre::SIZE;
+        const float center_z = static_cast<float>(acre_z0 + start_z) + rz; // middle of the blob
+
+        // Track world tiles this call changed, plus their original type
+        struct PaintedTile
+        {
+            glm::ivec2 pos;
+            TileType original_type;
+        };
+
+        std::vector<PaintedTile> painted;
+        painted.reserve(max_width * depth);
+
+        // Scan a tight bounding box
+        const int z_min = std::max(0, static_cast<int>(std::floor(center_z - rz - 1)));
+        const int z_max = std::min(world_h - 1, static_cast<int>(std::ceil(center_z + rz + 1)));
+
+        for (int wz = z_min; wz <= z_max; ++wz)
+        {
+            const float dz = static_cast<float>(wz) - center_z;
+            const float nz = dz / rz;
+            if (nz * nz > 1.0f)
                 continue;
 
-            float t = static_cast<float>(dz) / depth;
-            float width_factor = (t < 0.4f) ? 1.0f : 1.0f - std::pow((t - 0.4f) / 0.6f, 2);
+            // Optional “teardrop” bend: slide X center a little over Z
+            const float bend = curve * (dz / static_cast<float>(depth)); // tiny offset
+            const float cx = static_cast<float>(center_x) + bend;
 
-            int half_width = static_cast<int>(max_width * width_factor);
-            int curve_offset = static_cast<int>(curve_amount * t * t);
+            const int x_min = std::max(0, static_cast<int>(std::floor(cx - rx - 1)));
+            const int x_max = std::min(total_width - 1, static_cast<int>(std::ceil(cx + rx + 1)));
 
-            for (int dx = -half_width; dx <= half_width; ++dx)
+            for (int wx = x_min; wx <= x_max; ++wx)
             {
-                int wx = center_x + dx + curve_offset;
+                const float dx = static_cast<float>(wx) - cx;
+                const float nx = dx / rx;
 
-                if (wx >= 0 && wx < total_width)
+                // Inside ellipse?
+                if (nx * nx + nz * nz > 1.0f)
+                    continue;
+
+                auto [a, l] = utils::GetTileCoords(wx, wz);
+                Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
+
+                // Only paint over beach/ocean; do not touch river/grass/other
+                if (tile.type == TileType::SAND || tile.type == TileType::OCEAN)
                 {
-                    int acre_x = wx / Acre::SIZE;
-                    int local_x = wx % Acre::SIZE;
+                    PaintedTile pt;
+                    pt.pos = {wx, wz};
+                    pt.original_type = tile.type;
 
-                    Acre &acre = town.GetAcre(acre_x, ocean_acre_row);
-                    Tile &tile = acre.tiles[local_z][local_x];
+                    tile.type = TileType::GRASS;
+                    tile.elevation = 0;
 
-                    if (half_width > 0)
-                    {
-                        float dist = std::abs(static_cast<float>(dx) / (half_width + 0.5f));
+                    painted.push_back(pt);
+                }
+            }
+        }
 
-                        if (dist <= 1.0f)
-                        {
-                            // 1. Only change the type to GRASS if it's NOT water.
-                            // This allows the "teardrop" to exist "under" the river.
-                            if (tile.type != TileType::RIVER && tile.type != TileType::RIVER_MOUTH)
-                            {
-                                tile.type = TileType::GRASS;
-                            }
+        // Connectivity cleanup: remove isolated or near-isolated GRASS tips
+        const int n_off[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 
-                            // 2. Always set elevation to 0.
-                            // This ensures the river bed and the grass banks are
-                            // at the same height, preventing weird cliff artifacts.
-                            tile.elevation = 0;
-                        }
-                    }
+        for (const PaintedTile &pt : painted)
+        {
+            int wx = pt.pos.x;
+            int wz = pt.pos.y;
+
+            int grass_neighbors = 0;
+
+            for (int i = 0; i < 4; ++i)
+            {
+                int nx = wx + n_off[i][0];
+                int nz = wz + n_off[i][1];
+
+                if (nx < 0 || nx >= total_width || nz < 0 || nz >= world_h)
+                    continue;
+
+                auto [na, nl] = utils::GetTileCoords(nx, nz);
+                Tile &nt = town.GetAcre(na.x, na.y).tiles[nl.y][nl.x];
+
+                if (nt.type == TileType::GRASS)
+                    ++grass_neighbors;
+            }
+
+            // If this GRASS tile has 0 or 1 GRASS neighbors, it is a spike: revert it
+            if (grass_neighbors <= 1)
+            {
+                auto [a, l] = utils::GetTileCoords(wx, wz);
+                Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
+
+                // Only revert if still GRASS (in case something else changed it later)
+                if (tile.type == TileType::GRASS)
+                {
+                    tile.type = pt.original_type;
+                    tile.elevation = 0;
                 }
             }
         }
