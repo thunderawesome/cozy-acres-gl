@@ -9,12 +9,93 @@
 #include <vector>
 #include <algorithm>
 #include <random>
+#include <cmath>
 #include <glm/glm.hpp>
 
 namespace cozy::world
 {
     namespace rivers
     {
+        // Forward declarations
+        void CarveRiverSection(Town &town, int center_x, int center_z, int half_width);
+
+        // Simple smoothstep function for rounded corners
+        float SmoothStep(float t)
+        {
+            return t * t * (3.0f - 2.0f * t);
+        }
+
+        // Calculate wiggle offset using sine wave
+        int CalculateWiggle(int position, float amplitude, float frequency, float phase)
+        {
+            float offset = amplitude * std::sin(frequency * position + phase);
+            return static_cast<int>(std::round(offset));
+        }
+
+        // Get base X position for a given Z coordinate
+        int GetBaseRiverX(int z, const std::vector<int> &column_targets)
+        {
+            int curr_acre = z / Acre::SIZE;
+            int next_acre = std::min(curr_acre + 1, static_cast<int>(column_targets.size()) - 1);
+            int local_z = z % Acre::SIZE;
+
+            int target_col = (local_z < TownConfig::RIVER_CONNECTION_POINT_OFFSET)
+                                 ? column_targets[curr_acre]
+                                 : column_targets[next_acre];
+
+            return target_col * Acre::SIZE + TownConfig::RIVER_CONNECTION_POINT_OFFSET;
+        }
+
+        // Apply corner rounding to a position
+        int ApplyCornerRounding(int z, int base_x, const std::vector<int> &column_targets)
+        {
+            int curr_acre = z / Acre::SIZE;
+            int local_z = z % Acre::SIZE;
+
+            if (curr_acre >= static_cast<int>(column_targets.size()) - 1)
+                return base_x;
+
+            int from_col = column_targets[curr_acre];
+            int to_col = column_targets[curr_acre + 1];
+
+            // No corner rounding needed if going straight
+            if (from_col == to_col)
+                return base_x;
+
+            // Define corner region (larger radius for gentler curves)
+            const int corner_radius = 6;
+            int corner_start = TownConfig::RIVER_CONNECTION_POINT_OFFSET - corner_radius;
+            int corner_end = TownConfig::RIVER_CONNECTION_POINT_OFFSET + corner_radius;
+
+            // Only apply rounding within the corner region
+            if (local_z < corner_start || local_z > corner_end)
+                return base_x;
+
+            // Calculate smooth interpolation factor
+            float t = static_cast<float>(local_z - corner_start) / (corner_end - corner_start);
+            // Apply smoothstep twice for even smoother curves
+            t = SmoothStep(SmoothStep(t));
+
+            // Interpolate between start and end positions
+            int from_x = from_col * Acre::SIZE + TownConfig::RIVER_CONNECTION_POINT_OFFSET;
+            int to_x = to_col * Acre::SIZE + TownConfig::RIVER_CONNECTION_POINT_OFFSET;
+
+            return static_cast<int>(from_x + t * (to_x - from_x));
+        }
+
+        // Fill gaps between consecutive river positions
+        void FillGaps(Town &town, int from_x, int to_x, int z, int half_width)
+        {
+            if (from_x == to_x)
+                return;
+
+            int dir = (to_x > from_x) ? 1 : -1;
+            for (int x = from_x; x != to_x; x += dir)
+            {
+                CarveRiverSection(town, x, z, half_width);
+            }
+        }
+
         bool CheckPathValid(
             const Town &town,
             int acre_z,
@@ -93,7 +174,6 @@ namespace cozy::world
                                                         static_cast<float>(wz)});
                         Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
-                        // Decide per-tile: if it's sand or ocean, make it a mouth, else river
                         const TileType t = tile.type;
                         const bool is_river_mouth =
                             (t == TileType::SAND || t == TileType::OCEAN);
@@ -110,11 +190,10 @@ namespace cozy::world
             const int total_h = Town::HEIGHT * Acre::SIZE;
             const int ocean_acre_row = Town::HEIGHT - 1;
 
-            // Track the river's X-coordinates at the mouth to find the center
             std::vector<int> mouth_x_coords;
             int mouth_z = -1;
 
-            // 1. Detect where the river first hits the beach/ocean
+            // Detect where the river first hits the beach/ocean
             for (int z = 0; z < total_h; ++z)
             {
                 for (int x = 0; x < total_w; ++x)
@@ -158,31 +237,55 @@ namespace cozy::world
                 }
             }
 
+            // Create grass peninsulas at river mouth
             // 2. Spawn the rounded grass inlets (Teardrops)
             if (!mouth_x_coords.empty())
             {
-                auto [min_x_it, max_x_it] = std::minmax_element(mouth_x_coords.begin(), mouth_x_coords.end());
+                auto [min_x_it, max_x_it] = std::minmax_element(
+                    mouth_x_coords.begin(), mouth_x_coords.end());
                 int river_min_x = *min_x_it;
                 int river_max_x = *max_x_it;
 
-                // Dimensions for refined, rounded "ears"
-                int drop_width = 5;
-                int drop_depth = 8;
-                float curve = 1.0f;
+                // Randomized dimensions for refined, rounded "ears"
+                std::uniform_int_distribution<int> ear_width_dist(6, 8); // diameters
+                std::uniform_int_distribution<int> ear_depth_dist(6, 8);
 
-                int left_drop_center = river_min_x - (drop_width / 2);
-                int right_drop_center = river_max_x + (drop_width / 2);
+                // Left ear params
+                int left_width = ear_width_dist(rng);
+                int left_depth = ear_depth_dist(rng);
 
-                // Start higher up to "tuck" the base under the mainland grass seamlessly
-                int start_z_local = (mouth_z % Acre::SIZE) - 4;
+                // Right ear params
+                int right_width = ear_width_dist(rng);
+                int right_depth = ear_depth_dist(rng);
 
-                // Left Bank Inlet
-                utils::CreateGrassTeardrop(town, ocean_acre_row, left_drop_center,
-                                           start_z_local, drop_width, drop_depth, -curve, total_w);
+                // Centers: push away from river by ~half their own width
+                int left_drop_center = river_min_x - (left_width / 2);
+                int right_drop_center = river_max_x + (right_width / 2);
 
-                // Right Bank Inlet
-                utils::CreateGrassTeardrop(town, ocean_acre_row, right_drop_center,
-                                           start_z_local, drop_width, drop_depth, curve, total_w);
+                // Start higher up to tuck the base under mainland grass
+                int start_z_local = (mouth_z % Acre::SIZE) - 2;
+
+                // Left Bank Inlet (bend left / away from river)
+                utils::CreateGrassTeardrop(
+                    town,
+                    ocean_acre_row,
+                    left_drop_center,
+                    start_z_local,
+                    left_width,
+                    left_depth,
+                    -1.0f, // fixed curve, negative for left side
+                    total_w);
+
+                // Right Bank Inlet (bend right / away from river)
+                utils::CreateGrassTeardrop(
+                    town,
+                    ocean_acre_row,
+                    right_drop_center,
+                    start_z_local,
+                    right_width,
+                    right_depth,
+                    1.0f, // fixed curve, positive for right side
+                    total_w);
 
                 // 3. Cleanup Pass: Prevent sand/river contact and isolated sand pockets
                 for (int z = 0; z < total_h; ++z)
@@ -252,8 +355,7 @@ namespace cozy::world
             std::uniform_int_distribution<int> meander_chance(0, 99);
             std::uniform_int_distribution<int> horizontal_length(1, 3);
 
-            // Generate target column for each acre row (Z direction)
-            // River flows through ALL acres including the ocean row
+            // Generate target column for each acre row
             std::vector<int> column_targets(Town::HEIGHT);
             int current_col = col_dist(rng);
             column_targets[0] = current_col;
@@ -261,24 +363,18 @@ namespace cozy::world
             int consecutive_straight = 0;
             const int max_consecutive_straight = 2;
 
-            // Generate river path through all acres (including ocean acre)
+            // Generate river path through all acres
             for (int az = 0; az < Town::HEIGHT - 1; ++az)
             {
                 int next_col = current_col;
                 bool straight_ok = CheckPathValid(town, az, current_col, current_col);
                 bool wants_meander = (meander_chance(rng) < config.riverMeanderChance);
-
                 bool force_meander = (consecutive_straight >= max_consecutive_straight);
 
                 if (!straight_ok || wants_meander || force_meander)
                 {
                     bool wants_long_horizontal = (meander_chance(rng) < config.riverHorizontalChance);
-                    int target_col_change = 1;
-
-                    if (wants_long_horizontal)
-                    {
-                        target_col_change = horizontal_length(rng);
-                    }
+                    int target_col_change = wants_long_horizontal ? horizontal_length(rng) : 1;
 
                     std::vector<int> candidates;
 
@@ -328,10 +424,6 @@ namespace cozy::world
                         next_col = candidates[0];
                         consecutive_straight = 0;
                     }
-                    else if (!force_meander)
-                    {
-                        consecutive_straight++;
-                    }
                     else
                     {
                         consecutive_straight++;
@@ -346,42 +438,110 @@ namespace cozy::world
                 current_col = next_col;
             }
 
+            // Generate wiggle parameters (more subtle)
+            std::uniform_real_distribution<float> amplitude_dist(0.5f, 1.2f);
+            std::uniform_real_distribution<float> frequency_dist(0.08f, 0.15f);
+            std::uniform_real_distribution<float> phase_dist(0.0f, 6.28318f);
+
+            const float wiggle_amplitude = amplitude_dist(rng);
+            const float wiggle_frequency = frequency_dist(rng);
+            const float wiggle_phase_x = phase_dist(rng); // For X-axis wiggle
+            const float wiggle_phase_z = phase_dist(rng); // For Z-axis wiggle
+
             const int total_height = Town::HEIGHT * Acre::SIZE;
 
-            std::vector<int> river_center_x(total_height);
+            // Calculate river path with corner rounding and wiggles
+            std::vector<std::pair<int, int>> river_path; // Store (x, z) pairs
+
             for (int z = 0; z < total_height; ++z)
             {
-                int curr_acre = z / Acre::SIZE;
-                int next_acre = std::min(curr_acre + 1, Town::HEIGHT - 1);
+                int base_x = GetBaseRiverX(z, column_targets);
+                int rounded_x = ApplyCornerRounding(z, base_x, column_targets);
+                int wiggle_x = CalculateWiggle(z, wiggle_amplitude, wiggle_frequency, wiggle_phase_x);
+
+                // Check if we're in a horizontal corner section
                 int local_z = z % Acre::SIZE;
-                int target_col = (local_z < TownConfig::RIVER_CONNECTION_POINT_OFFSET)
-                                     ? column_targets[curr_acre]
-                                     : column_targets[next_acre];
-                river_center_x[z] = target_col * Acre::SIZE + TownConfig::RIVER_CONNECTION_POINT_OFFSET;
-            }
+                int curr_acre = z / Acre::SIZE;
+                bool is_horizontal_section = false;
 
-            // Carve the river through ALL acres (including into ocean)
-            for (int z = 0; z < total_height; ++z)
-            {
-                int center_x = river_center_x[z];
-                int center_z = z;
-
-                if (z > 0 && (z % Acre::SIZE) == TownConfig::RIVER_CONNECTION_POINT_OFFSET)
+                if (curr_acre < Town::HEIGHT - 1 && local_z == TownConfig::RIVER_CONNECTION_POINT_OFFSET)
                 {
-                    int prev_x = river_center_x[z - 1];
-                    if (prev_x != center_x)
+                    int from_col = column_targets[curr_acre];
+                    int to_col = column_targets[curr_acre + 1];
+                    if (from_col != to_col)
                     {
-                        int dir = (center_x > prev_x) ? 1 : -1;
-                        for (int x = prev_x; x != center_x + dir; x += dir)
-                        {
-                            CarveRiverSection(town, x, z, halfWidth);
-                        }
-                        continue;
+                        is_horizontal_section = true;
                     }
                 }
 
-                CarveRiverSection(town, center_x, center_z, halfWidth);
+                // Apply wiggle in Z direction for horizontal sections
+                int final_z = z;
+                if (is_horizontal_section)
+                {
+                    int wiggle_z = CalculateWiggle(rounded_x, wiggle_amplitude, wiggle_frequency, wiggle_phase_z);
+                    final_z = z + wiggle_z;
+                }
+
+                river_path.push_back({rounded_x + wiggle_x, final_z});
             }
+
+            // Carve the river with gap filling
+            for (size_t i = 0; i < river_path.size(); ++i)
+            {
+                auto [x, z] = river_path[i];
+
+                if (i > 0)
+                {
+                    auto [prev_x, prev_z] = river_path[i - 1];
+
+                    // Fill X gaps
+                    if (prev_x != x && prev_z == z)
+                    {
+                        FillGaps(town, prev_x, x, z, halfWidth);
+                    }
+                    // Fill Z gaps
+                    else if (prev_z != z && prev_x == x)
+                    {
+                        int dir = (z > prev_z) ? 1 : -1;
+                        for (int fill_z = prev_z; fill_z != z; fill_z += dir)
+                        {
+                            CarveRiverSection(town, x, fill_z, halfWidth);
+                        }
+                    }
+                    // Fill diagonal gaps (both X and Z changed)
+                    else if (prev_x != x && prev_z != z)
+                    {
+                        // Use Bresenham-like approach to fill diagonal
+                        int dx = std::abs(x - prev_x);
+                        int dz = std::abs(z - prev_z);
+                        int sx = (x > prev_x) ? 1 : -1;
+                        int sz = (z > prev_z) ? 1 : -1;
+                        int err = dx - dz;
+
+                        int curr_x = prev_x;
+                        int curr_z = prev_z;
+
+                        while (curr_x != x || curr_z != z)
+                        {
+                            CarveRiverSection(town, curr_x, curr_z, halfWidth);
+                            int e2 = 2 * err;
+                            if (e2 > -dz)
+                            {
+                                err -= dz;
+                                curr_x += sx;
+                            }
+                            if (e2 < dx)
+                            {
+                                err += dx;
+                                curr_z += sz;
+                            }
+                        }
+                    }
+                }
+
+                CarveRiverSection(town, x, z, halfWidth);
+            }
+
             CreateRiverMouths(town, rng);
         }
     }
