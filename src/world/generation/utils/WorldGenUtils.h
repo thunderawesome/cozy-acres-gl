@@ -32,6 +32,8 @@ namespace cozy::world::utils
                type == TileType::POND;
     }
 
+    float SmoothStep(float t);
+
     void CreateGrassTeardrop(
         Town &town,
         int ocean_acre_row,

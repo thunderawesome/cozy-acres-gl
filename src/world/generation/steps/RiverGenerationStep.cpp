@@ -16,12 +16,6 @@ namespace cozy::world
 {
     namespace rivers
     {
-        // Simple smoothstep function for rounded corners
-        float SmoothStep(float t)
-        {
-            return t * t * (3.0f - 2.0f * t);
-        }
-
         // Calculate wiggle offset using sine wave
         int CalculateWiggle(int position, float amplitude, float frequency, float phase)
         {
@@ -71,7 +65,7 @@ namespace cozy::world
             // Calculate smooth interpolation factor
             float t = static_cast<float>(local_z - corner_start) / (corner_end - corner_start);
             // Apply smoothstep twice for even smoother curves
-            t = SmoothStep(SmoothStep(t));
+            t = utils::SmoothStep(utils::SmoothStep(t));
 
             // Interpolate between start and end positions
             int from_x = from_col * Acre::SIZE + TownConfig::RIVER_CONNECTION_POINT_OFFSET;

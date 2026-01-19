@@ -2,6 +2,12 @@
 
 namespace cozy::world::utils
 {
+    // Simple smoothstep function for rounded corners
+    float SmoothStep(float t)
+    {
+        return t * t * (3.0f - 2.0f * t);
+    }
+
     void CreateGrassTeardrop(
         Town &town,
         int ocean_acre_row,
