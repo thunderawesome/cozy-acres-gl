@@ -65,7 +65,7 @@ namespace cozy::world
             // Calculate smooth interpolation factor
             float t = static_cast<float>(local_z - corner_start) / (corner_end - corner_start);
             // Apply smoothstep twice for even smoother curves
-            t = utils::SmoothStep(utils::SmoothStep(t));
+            t = utils::SmoothStep(utils::SmoothStep(utils::SmoothStep(t)));
 
             // Interpolate between start and end positions
             int from_x = from_col * Acre::SIZE + TownConfig::RIVER_CONNECTION_POINT_OFFSET;
@@ -430,7 +430,7 @@ namespace cozy::world
             // Generate river wiggle
             std::uniform_real_distribution<float> amplitude_dist(1.35f, 1.4f);
             std::uniform_real_distribution<float> frequency_dist(0.35f, 0.55f);
-            std::uniform_real_distribution<float> phase_dist(0.0f, 1.28318f);
+            std::uniform_real_distribution<float> phase_dist(0.0f, 6.28318f);
 
             const float wiggle_amplitude = amplitude_dist(rng);
             const float wiggle_frequency = frequency_dist(rng);
