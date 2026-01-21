@@ -24,6 +24,18 @@ namespace cozy::world::utils
             {wx % Acre::SIZE, wz % Acre::SIZE}};
     }
 
+    inline TileType GetTileTypeSafe(const Town &town, int wx, int wz)
+    {
+        const int world_w = Town::WIDTH * Acre::SIZE;
+        const int world_h = Town::HEIGHT * Acre::SIZE;
+
+        if (wx < 0 || wx >= world_w || wz < 0 || wz >= world_h)
+            return TileType::EMPTY;
+
+        auto [a, l] = GetTileCoords(wx, wz);
+        return town.GetAcre(a.x, a.y).tiles[l.y][l.x].type;
+    }
+
     inline bool IsAnyWater(TileType type)
     {
         return type == TileType::RIVER ||

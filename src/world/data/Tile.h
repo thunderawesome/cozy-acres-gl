@@ -27,6 +27,7 @@ namespace cozy::world
     struct Tile
     {
         TileType type = TileType::EMPTY;
-        int8_t elevation = 0; // 0 = base, 1 = mid, 2 = high
+        int8_t elevation = 0;      // 0 = base, 1 = mid, 2 = high
+        uint8_t autotileIndex = 0; // 0-255 bitmask
     };
 }
