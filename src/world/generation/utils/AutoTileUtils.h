@@ -23,23 +23,35 @@ namespace cozy::world::autotile
     template <typename Predicate>
     inline uint8_t Calculate8BitMask(int x, int z, Predicate shouldConnect)
     {
+        // Check cardinal neighbors first
+        bool n = shouldConnect(x, z - 1);
+        bool s = shouldConnect(x, z + 1);
+        bool w = shouldConnect(x - 1, z);
+        bool e = shouldConnect(x + 1, z);
+
         uint8_t mask = 0;
-        if (shouldConnect(x - 1, z - 1))
-            mask |= 1;
-        if (shouldConnect(x, z - 1))
+
+        // Cardinal bits: North(2), West(8), East(16), South(64)
+        if (n)
             mask |= 2;
-        if (shouldConnect(x + 1, z - 1))
-            mask |= 4;
-        if (shouldConnect(x - 1, z))
+        if (w)
             mask |= 8;
-        if (shouldConnect(x + 1, z))
+        if (e)
             mask |= 16;
-        if (shouldConnect(x - 1, z + 1))
-            mask |= 32;
-        if (shouldConnect(x, z + 1))
+        if (s)
             mask |= 64;
-        if (shouldConnect(x + 1, z + 1))
-            mask |= 128;
+
+        // Diagonal bits: Only valid if both adjacent cardinal neighbors also connect.
+        // This ensures we only use corner tiles when there's a continuous surface.
+        if (n && w && shouldConnect(x - 1, z - 1))
+            mask |= 1; // NW
+        if (n && e && shouldConnect(x + 1, z - 1))
+            mask |= 4; // NE
+        if (s && w && shouldConnect(x - 1, z + 1))
+            mask |= 32; // SW
+        if (s && e && shouldConnect(x + 1, z + 1))
+            mask |= 128; // SE
+
         return mask;
     }
 
