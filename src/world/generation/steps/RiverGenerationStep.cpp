@@ -342,7 +342,7 @@ namespace cozy::world
             const int halfWidth = width / 2;
             std::uniform_int_distribution<int> col_dist(0, Town::WIDTH - 1);
             std::uniform_int_distribution<int> meander_chance(0, 99);
-            std::uniform_int_distribution<int> horizontal_length(1, 3);
+            std::uniform_int_distribution<int> horizontal_length(0, 2);
 
             // Generate target column for each acre row
             std::vector<int> column_targets(Town::HEIGHT);
