@@ -4,6 +4,7 @@
 #include "world/data/Tile.h"
 #include "world/data/TownConfig.h"
 #include "world/generation/utils/WorldGenUtils.h"
+#include "world/generation/utils/AutoTileUtils.h"
 
 #include <random>
 #include <cmath>
@@ -17,7 +18,6 @@ namespace cozy::world
 {
     namespace ponds
     {
-        // Updated to count all water types, cliffs, and ramps
         int CountWaterCliffRampTiles(Town &town, int acre_x, int acre_y)
         {
             int count = 0;
@@ -36,7 +36,6 @@ namespace cozy::world
                     }
                 }
             }
-
             return count;
         }
 
@@ -50,11 +49,8 @@ namespace cozy::world
             };
 
             std::vector<AcreScore> candidates;
-
-            // Don't consider the ocean row (bottom row) for pond placement
             const int max_acre_y = Town::HEIGHT - 1;
 
-            // Score all acres except ocean row
             for (int ay = 0; ay < max_acre_y; ++ay)
             {
                 for (int ax = 0; ax < Town::WIDTH; ++ax)
@@ -64,14 +60,12 @@ namespace cozy::world
                     score.obstacle_count = CountWaterCliffRampTiles(town, ax, ay);
                     score.neighbor_obstacle_count = 0;
 
-                    // Check neighboring acres (8-directional)
                     for (int dy = -1; dy <= 1; ++dy)
                     {
                         for (int dx = -1; dx <= 1; ++dx)
                         {
                             if (dx == 0 && dy == 0)
                                 continue;
-
                             int nx = ax + dx;
                             int ny = ay + dy;
 
@@ -81,12 +75,10 @@ namespace cozy::world
                             }
                         }
                     }
-
                     candidates.push_back(score);
                 }
             }
 
-            // Sort by: 1) fewest obstacles in acre, 2) fewest in neighbors
             std::sort(candidates.begin(), candidates.end(),
                       [](const AcreScore &a, const AcreScore &b)
                       {
@@ -95,26 +87,15 @@ namespace cozy::world
                           return a.neighbor_obstacle_count < b.neighbor_obstacle_count;
                       });
 
-            // Return sorted list of acre positions
             std::vector<glm::ivec2> result;
             for (const auto &candidate : candidates)
-            {
                 result.push_back(candidate.pos);
-            }
             return result;
         }
 
-        bool CanPlacePond(
-            Town &town,
-            const glm::ivec2 &center,
-            int radius,
-            int world_w,
-            int world_h)
+        bool CanPlacePond(Town &town, const glm::ivec2 &center, int radius, int world_w, int world_h)
         {
-            // Don't place ponds in the ocean row
             const int ocean_start_z = (Town::HEIGHT - 1) * Acre::SIZE;
-
-            // Check if pond would be too close to boundaries or ocean
             int buffer = radius + 4;
             if (center.x < buffer || center.x >= world_w - buffer ||
                 center.y < buffer || center.y >= ocean_start_z - buffer)
@@ -122,252 +103,185 @@ namespace cozy::world
                 return false;
             }
 
-            // Check if area contains ANY water, cliffs, or ramps
             int check_radius = radius + 2;
             for (int z = center.y - check_radius; z <= center.y + check_radius; ++z)
             {
                 for (int x = center.x - check_radius; x <= center.x + check_radius; ++x)
                 {
-                    if (x >= 0 && x < world_w && z >= 0 && z < world_h)
+                    TileType type = utils::GetTileTypeSafe(town, x, z);
+                    if (utils::IsAnyWater(type) || type == TileType::CLIFF || type == TileType::RAMP)
                     {
-                        auto [a, l] = town.WorldToTile({static_cast<float>(x), 0.f, static_cast<float>(z)});
-                        auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
-
-                        // Reject if ANY water type, cliff, or ramp is present
-                        if (utils::IsAnyWater(tile.type) ||
-                            tile.type == TileType::CLIFF ||
-                            tile.type == TileType::RAMP)
-                        {
-                            return false;
-                        }
+                        return false;
                     }
                 }
             }
-
             return true;
         }
 
-        void Paint4x4Brush(
-            Town &town,
-            const glm::ivec2 &center,
-            int world_w,
-            int world_h,
-            std::unordered_set<glm::ivec2, utils::PairHash> &painted)
+        void Paint4x4Brush(Town &town, const glm::ivec2 &brush_center, int world_w, int world_h, std::unordered_set<glm::ivec2, utils::PairHash> &painted)
         {
             for (int dz = -2; dz <= 1; ++dz)
             {
                 for (int dx = -2; dx <= 1; ++dx)
                 {
-                    int x = center.x + dx;
-                    int z = center.y + dz;
+                    int x = brush_center.x + dx;
+                    int z = brush_center.y + dz;
 
                     if (x >= 0 && x < world_w && z >= 0 && z < world_h)
                     {
                         glm::ivec2 pos{x, z};
-                        if (painted.find(pos) == painted.end())
-                        {
-                            auto [a, l] = town.WorldToTile({static_cast<float>(x), 0.f, static_cast<float>(z)});
-                            auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
+                        auto [a, l] = utils::GetTileCoords(x, z);
+                        auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
-                            // Only paint over grass/empty tiles, never water, cliffs, or ramps
-                            if (!utils::IsAnyWater(tile.type) &&
-                                tile.type != TileType::CLIFF &&
-                                tile.type != TileType::RAMP)
-                            {
-                                tile.type = TileType::POND;
-                                painted.insert(pos);
-                            }
+                        if (!utils::IsAnyWater(tile.type) && tile.type != TileType::CLIFF && tile.type != TileType::RAMP)
+                        {
+                            tile.type = TileType::POND;
+                            painted.insert(pos);
                         }
                     }
                 }
             }
         }
 
-        void Execute(
-            Town &town,
-            std::mt19937_64 &rng,
-            const TownConfig &config)
+        void Execute(Town &town, std::mt19937_64 &rng, const TownConfig &config)
         {
             const int world_w = Town::WIDTH * Acre::SIZE;
             const int world_h = Town::HEIGHT * Acre::SIZE;
             const int ocean_start_z = (Town::HEIGHT - 1) * Acre::SIZE;
 
-            // Get sorted list of best acres (excludes ocean row)
             std::vector<glm::ivec2> best_acres = GetBestAcresForPond(town);
 
+            // 1. Setup Radius and Shape
             std::uniform_int_distribution<int> radius_dist(config.minPondRadius, config.maxPondRadius);
             std::uniform_int_distribution<int> shape_type(0, 2);
             std::uniform_int_distribution<int> orientation(0, 1);
-            std::uniform_real_distribution<float> elongation_dist(1.5f, 2.0f);
-            std::uniform_real_distribution<float> bend_dist(0.9f, 1.2f);
-            std::uniform_int_distribution<int> offset_dist(-Acre::SIZE / 4, Acre::SIZE / 4);
+            std::uniform_real_distribution<float> elongation_dist(1.2f, 1.8f);
+            std::uniform_int_distribution<int> offset_dist(-Acre::SIZE / 2, Acre::SIZE / 2);
 
             int base_radius = radius_dist(rng);
             int shape = shape_type(rng);
-
             float radius_x = static_cast<float>(base_radius);
             float radius_z = static_cast<float>(base_radius);
-            glm::vec2 offset_center{0.0f, 0.0f};
 
-            if (shape == 1) // Egg shape
+            if (shape == 1)
             {
                 float elongation = elongation_dist(rng);
                 if (orientation(rng) == 0)
-                {
                     radius_x *= elongation;
-                }
                 else
-                {
                     radius_z *= elongation;
-                }
-            }
-            else if (shape == 2) // L-bend
-            {
-                float bend_amount = bend_dist(rng) * static_cast<float>(base_radius);
-                if (orientation(rng) == 0)
-                {
-                    offset_center = glm::vec2(bend_amount, bend_amount);
-                }
-                else
-                {
-                    offset_center = glm::vec2(-bend_amount, bend_amount);
-                }
             }
 
             int max_radius = static_cast<int>(std::ceil(std::max(radius_x, radius_z)));
-
-            // Try acres in order of best to worst
             glm::ivec2 center;
+            int target_elevation = 0;
             bool valid_location = false;
 
+            // 2. Aggressive Search
             for (const auto &acre_pos : best_acres)
             {
-                // Skip if acre is in ocean row (shouldn't happen due to GetBestAcresForPond, but safety check)
-                if (acre_pos.y >= Town::HEIGHT - 1)
-                    continue;
-
                 int acre_center_x = acre_pos.x * Acre::SIZE + Acre::SIZE / 2;
                 int acre_center_y = acre_pos.y * Acre::SIZE + Acre::SIZE / 2;
 
-                // Try multiple positions within this acre
-                for (int attempt = 0; attempt < 5; ++attempt)
+                for (int attempt = 0; attempt < 20; ++attempt)
                 {
-                    center = {
-                        acre_center_x + offset_dist(rng),
-                        acre_center_y + offset_dist(rng)};
+                    center = {acre_center_x + offset_dist(rng), acre_center_y + offset_dist(rng)};
 
-                    // Make sure we're not in ocean row
-                    if (center.y >= ocean_start_z - max_radius - 4)
+                    // Ensure center is within bounds
+                    if (center.x < max_radius || center.x >= world_w - max_radius ||
+                        center.y < max_radius || center.y >= ocean_start_z - max_radius)
                         continue;
 
-                    if (CanPlacePond(town, center, max_radius, world_w, world_h))
+                    // Check if center tile is actually grass
+                    auto [ca, cl] = utils::GetTileCoords(center.x, center.y);
+                    auto &center_tile = town.GetAcre(ca.x, ca.y).tiles[cl.y][cl.x];
+
+                    if (center_tile.type == TileType::GRASS)
                     {
-                        valid_location = true;
-                        break;
+                        // Relaxed check: Only check collision with cliffs/water within the radius
+                        if (CanPlacePond(town, center, max_radius, world_w, world_h))
+                        {
+                            target_elevation = center_tile.elevation;
+                            valid_location = true;
+                            break;
+                        }
                     }
                 }
-
                 if (valid_location)
-                {
                     break;
-                }
             }
 
-            // If still no valid location, try placing at the best acre center
             if (!valid_location)
-            {
-                if (!best_acres.empty())
-                {
-                    auto &acre_pos = best_acres[0];
+                return;
 
-                    // Skip ocean row
-                    if (acre_pos.y >= Town::HEIGHT - 1)
-                        return;
-
-                    int acre_base_x = acre_pos.x * Acre::SIZE;
-                    int acre_base_y = acre_pos.y * Acre::SIZE;
-
-                    // Pick a random corner with 3-tile padding from edges
-                    std::uniform_int_distribution<int> corner_choice(0, 3);
-                    int corner = corner_choice(rng);
-
-                    switch (corner)
-                    {
-                    case 0: // Top-left
-                        center.x = acre_base_x + 3;
-                        center.y = acre_base_y + 3;
-                        break;
-                    case 1: // Top-right
-                        center.x = acre_base_x + Acre::SIZE - 4;
-                        center.y = acre_base_y + 3;
-                        break;
-                    case 2: // Bottom-left
-                        center.x = acre_base_x + 3;
-                        center.y = acre_base_y + Acre::SIZE - 4;
-                        break;
-                    case 3: // Bottom-right
-                        center.x = acre_base_x + Acre::SIZE - 4;
-                        center.y = acre_base_y + Acre::SIZE - 4;
-                        break;
-                    }
-
-                    // Final safety check - don't place in ocean
-                    if (center.y < ocean_start_z - max_radius - 4)
-                    {
-                        valid_location = true;
-                    }
-                }
-
-                if (!valid_location)
-                {
-                    return; // Can't find valid placement
-                }
-            }
-
+            // 3. Paint Pass
             std::unordered_set<glm::ivec2, utils::PairHash> painted;
-            std::queue<glm::ivec2> brush_queue;
+            int seed = static_cast<int>(rng());
 
-            int max_dim = max_radius + 3;
-
-            for (int z = center.y - max_dim; z <= center.y + max_dim; z += 2)
+            for (int wz = center.y - max_radius - config.pondMargin; wz <= center.y + max_radius + config.pondMargin; ++wz)
             {
-                for (int x = center.x - max_dim; x <= center.x + max_dim; x += 2)
+                for (int wx = center.x - max_radius - config.pondMargin; wx <= center.x + max_radius + config.pondMargin; ++wx)
                 {
-                    bool should_paint = false;
+                    if (wx < 0 || wx >= world_w || wz < 0 || wz >= ocean_start_z)
+                        continue;
 
-                    if (shape == 2) // L-bend
+                    float noiseX = utils::SmoothNoise(wx * config.pondNoiseScale, wz * config.pondNoiseScale, seed) * config.pondNoiseStrength;
+                    float noiseZ = utils::SmoothNoise(wx * config.pondNoiseScale, wz * config.pondNoiseScale, seed + 7919) * config.pondNoiseStrength;
+
+                    float dx = (static_cast<float>(wx) + noiseX - center.x) / radius_x;
+                    float dz = (static_cast<float>(wz) + noiseZ - center.y) / radius_z;
+
+                    if (dx * dx + dz * dz <= 1.0f)
                     {
-                        float dx1 = static_cast<float>(x - center.x);
-                        float dz1 = static_cast<float>(z - center.y);
-                        float dist1 = std::sqrt(dx1 * dx1 + dz1 * dz1);
+                        auto [a, l] = utils::GetTileCoords(wx, wz);
+                        auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
-                        float dx2 = static_cast<float>(x - center.x) - offset_center.x;
-                        float dz2 = static_cast<float>(z - center.y) - offset_center.y;
-                        float dist2 = std::sqrt(dx2 * dx2 + dz2 * dz2);
-
-                        should_paint = (dist1 <= radius_x) || (dist2 <= radius_x * 0.8f);
-                    }
-                    else // Circle or egg
-                    {
-                        float dx = static_cast<float>(x - center.x) / radius_x;
-                        float dz = static_cast<float>(z - center.y) / radius_z;
-                        float normalized_dist = std::sqrt(dx * dx + dz * dz);
-
-                        should_paint = normalized_dist <= 1.0f;
-                    }
-
-                    if (should_paint)
-                    {
-                        brush_queue.push({x, z});
+                        // Only paint if same elevation and is grass
+                        if (tile.type == TileType::GRASS && tile.elevation == target_elevation)
+                        {
+                            tile.type = TileType::POND;
+                            painted.insert({wx, wz});
+                        }
                     }
                 }
             }
 
-            while (!brush_queue.empty())
+            // 4. Cleanup (Capped Neighbors)
+            int effective_min = std::min(config.pondMinNeighbors, 2);
+            std::vector<glm::ivec2> to_revert;
+            for (const auto &pos : painted)
             {
-                auto pos = brush_queue.front();
-                brush_queue.pop();
-                Paint4x4Brush(town, pos, world_w, world_h, painted);
+                int neighbors = 0;
+                for (int dz = -1; dz <= 1; ++dz)
+                {
+                    for (int dx = -1; dx <= 1; ++dx)
+                    {
+                        if (dx == 0 && dz == 0)
+                            continue;
+                        if (utils::IsAnyWater(utils::GetTileTypeSafe(town, pos.x + dx, pos.y + dz)))
+                            neighbors++;
+                    }
+                }
+                if (neighbors < effective_min)
+                    to_revert.push_back(pos);
+            }
+
+            for (const auto &pos : to_revert)
+            {
+                auto [a, l] = utils::GetTileCoords(pos.x, pos.y);
+                town.GetAcre(a.x, a.y).tiles[l.y][l.x].type = TileType::GRASS;
+                painted.erase(pos);
+            }
+
+            // 5. Autotile Pass
+            for (const auto &pos : painted)
+            {
+                auto [a, l] = utils::GetTileCoords(pos.x, pos.y);
+                auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
+                if (tile.type == TileType::POND)
+                {
+                    tile.autotileIndex = autotile::CalculatePondBlobIndex(town, pos.x, pos.y);
+                }
             }
         }
     }

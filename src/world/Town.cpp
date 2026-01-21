@@ -92,8 +92,17 @@ namespace cozy::world
             return {0.12f * depthShade, 0.45f * depthShade, 0.85f * depthShade};
 
         case TileType::POND:
-            return {0.08f * depthShade, 0.42f * depthShade, 0.75f * depthShade};
-
+        {
+            // Index 46 is the "Full Interior" (water on all 8 sides)
+            if (tile.autotileIndex == 46)
+            {
+                return {0.08f, 0.42f, 0.75f}; // Dark Blue Interior
+            }
+            else
+            {
+                return {0.5f, 1.0f, 1.0f}; // Bright Teal Border (Any of the other 46 tiles)
+            }
+        }
         case TileType::WATERFALL:
             return {0.28f * depthShade, 0.72f * depthShade, 0.95f * depthShade};
 

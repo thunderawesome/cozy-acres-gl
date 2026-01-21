@@ -29,7 +29,11 @@ namespace cozy::world
         int riverHorizontalChance = 50; // 0–100 %
 
         // Pond parameters
-        int minPondRadius = 2;
-        int maxPondRadius = 3;
+        int minPondRadius = 4;
+        int maxPondRadius = 5;
+        float pondNoiseScale = 0.05f;   // How frequent the "wiggles" are (0.05 - 0.2)
+        float pondNoiseStrength = 3.0f; // How deep the coves/protrusions are
+        int pondMargin = 6;             // Extra tiles to scan around the radius
+        int pondMinNeighbors = 3;       // Minimum water neighbors to avoid being deleted
     };
 }
