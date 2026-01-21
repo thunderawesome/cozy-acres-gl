@@ -234,7 +234,7 @@ namespace cozy::world
             SmoothBoundary(mid_boundary, config.cliffSmoothIterations);
 
             // 5. Round corners at acre transitions
-            // RoundBoundaryCorners(mid_boundary, mid_targets, config.CLIFF_CONNECTION_POINT_OFFSET);
+            RoundBoundaryCorners(mid_boundary, mid_targets, config.CLIFF_CONNECTION_POINT_OFFSET);
 
             // 6. Optional high plateau
             std::vector<int> high_boundary(total_width, 0);
@@ -259,7 +259,7 @@ namespace cozy::world
                     config.cliffVariationAmount);
 
                 SmoothBoundary(high_boundary, config.cliffSmoothIterations);
-                // RoundBoundaryCorners(high_boundary, high_targets, config.CLIFF_CONNECTION_POINT_OFFSET);
+                RoundBoundaryCorners(high_boundary, high_targets, config.CLIFF_CONNECTION_POINT_OFFSET);
 
                 // Safety clamp
                 for (int x = 0; x < total_width; ++x)
