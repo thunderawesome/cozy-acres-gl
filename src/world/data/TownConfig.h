@@ -18,9 +18,9 @@ namespace cozy::world
 
         // Ramp parameters
         static constexpr int RAMP_LENGTH = 5;               // Tiles long (Z direction)
-        static constexpr int RAMP_CORRIDOR_HALF_WIDTH = 3;  // ±3 tiles = 7 total width
-        static constexpr int RAMP_NORMALIZE_HALF_WIDTH = 2; // ±2 tiles for side normalization
-        int rampWaterClearance = 2;                         // Minimum buffer from water features
+        static constexpr int RAMP_CORRIDOR_HALF_WIDTH = 1;  // ±3 tiles = 7 total width
+        static constexpr int RAMP_NORMALIZE_HALF_WIDTH = 1; // ±2 tiles for side normalization
+        int rampBuffer = 6;                                 // Minimum buffer from water features, obstacles, and bounds
         int rampTopCandidates = 3;                          // Consider top N candidates when placing
 
         // River parameters
