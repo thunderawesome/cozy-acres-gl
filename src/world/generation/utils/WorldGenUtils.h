@@ -41,6 +41,7 @@ namespace cozy::world::utils
         return type == TileType::RIVER ||
                type == TileType::RIVER_MOUTH ||
                type == TileType::OCEAN ||
+               type == TileType::WATERFALL ||
                type == TileType::POND;
     }
 

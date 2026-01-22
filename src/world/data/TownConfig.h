@@ -14,7 +14,6 @@ namespace cozy::world
         int maxHighPlateauRowOffset = 2;
         float highPlateauChance = 0.75f; // 0.0f-1.0f - Probability of having the third (highest) tier
         static constexpr int CLIFF_CONNECTION_POINT_OFFSET = 12;
-        static constexpr int RIVER_CONNECTION_POINT_OFFSET = 6;
 
         // Ramp parameters
         static constexpr int RAMP_LENGTH = 5;               // Tiles long (Z direction)
@@ -24,9 +23,11 @@ namespace cozy::world
         int rampTopCandidates = 3;                          // Consider top N candidates when placing
 
         // River parameters
-        int riverWidth = 3;
+        int riverWidth = 4;
         int riverMeanderChance = 50;    // 0–100 %
         int riverHorizontalChance = 50; // 0–100 %
+        static constexpr int RIVER_CONNECTION_POINT_OFFSET = 6;
+        static constexpr int RIVER_CORNER_RADIUS = 12;
 
         // Pond parameters
         int minPondRadius = 4;
