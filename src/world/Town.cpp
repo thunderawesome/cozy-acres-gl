@@ -88,29 +88,30 @@ namespace cozy::world
 
         switch (tile.type)
         {
+        // Group all water types that use the blob autotiler
         case TileType::RIVER:
-            return {0.12f * depthShade, 0.45f * depthShade, 0.85f * depthShade};
-
         case TileType::POND:
+        case TileType::RIVER_MOUTH:
         {
             // Index 46 is the "Full Interior" (water on all 8 sides)
             if (tile.autotileIndex == 46)
             {
-                return {0.08f, 0.42f, 0.75f}; // Dark Blue Interior
+                // Darker blue for deep/center water
+                return {0.08f * depthShade, 0.42f * depthShade, 0.75f * depthShade};
             }
             else
             {
-                return {0.5f, 1.0f, 1.0f}; // Bright Teal Border (Any of the other 46 tiles)
+                // Bright Teal/Cyan for the shoreline edges
+                return {0.4f * depthShade, 0.9f * depthShade, 1.0f * depthShade};
             }
         }
+
         case TileType::WATERFALL:
-            return {0.28f * depthShade, 0.72f * depthShade, 0.95f * depthShade};
+            // Give waterfalls a distinct "foamy" or lighter look
+            return {0.5f * depthShade, 0.8f * depthShade, 1.0f * depthShade};
 
         case TileType::OCEAN:
             return {0.05f * depthShade, 0.2f * depthShade, 0.6f * depthShade};
-
-        case TileType::RIVER_MOUTH:
-            return {0.08f, 0.32f, 0.72f};
 
         case TileType::SAND:
             return {0.86f, 0.78f, 0.62f};

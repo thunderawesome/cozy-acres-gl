@@ -5,11 +5,13 @@
 #include "world/data/Tile.h"
 #include "world/data/TownConfig.h"
 #include "world/generation/utils/WorldGenUtils.h"
+#include "world/generation/utils/AutotileUtils.h"
 
 #include <vector>
 #include <algorithm>
 #include <random>
 #include <cmath>
+#include <unordered_set>
 #include <glm/glm.hpp>
 
 namespace cozy::world
@@ -54,9 +56,8 @@ namespace cozy::world
                 return base_x;
 
             // Define corner region (larger radius for gentler curves)
-            const int corner_radius = 6;
-            int corner_start = TownConfig::RIVER_CONNECTION_POINT_OFFSET - corner_radius;
-            int corner_end = TownConfig::RIVER_CONNECTION_POINT_OFFSET + corner_radius;
+            int corner_start = TownConfig::RIVER_CONNECTION_POINT_OFFSET - TownConfig::RIVER_CORNER_RADIUS;
+            int corner_end = TownConfig::RIVER_CONNECTION_POINT_OFFSET + TownConfig::RIVER_CORNER_RADIUS;
 
             // Only apply rounding within the corner region
             if (local_z < corner_start || local_z > corner_end)
@@ -75,7 +76,8 @@ namespace cozy::world
         }
 
         // Fill gaps between consecutive river positions
-        void FillGaps(Town &town, int from_x, int to_x, int z, int half_width)
+        void FillGaps(Town &town, int from_x, int to_x, int z, int half_width,
+                      std::unordered_set<glm::ivec2, utils::PairHash> &tracker)
         {
             if (from_x == to_x)
                 return;
@@ -83,7 +85,7 @@ namespace cozy::world
             int dir = (to_x > from_x) ? 1 : -1;
             for (int x = from_x; x != to_x; x += dir)
             {
-                CarveRiverSection(town, x, z, half_width);
+                CarveRiverSection(town, x, z, half_width, tracker);
             }
         }
 
@@ -146,7 +148,8 @@ namespace cozy::world
             Town &town,
             int center_x,
             int center_z,
-            int half_width)
+            int half_width,
+            std::unordered_set<glm::ivec2, utils::PairHash> &painted_tracker) // Added tracker
         {
             const int w = Town::WIDTH * Acre::SIZE;
             const int h = Town::HEIGHT * Acre::SIZE;
@@ -160,25 +163,21 @@ namespace cozy::world
 
                     if (wx >= 0 && wx < w && wz >= 0 && wz < h)
                     {
-                        auto [a, l] = town.WorldToTile({static_cast<float>(wx), 0.f, static_cast<float>(wz)});
+                        auto [a, l] = utils::GetTileCoords(wx, wz);
                         Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
 
                         if (tile.type == TileType::OCEAN)
                             continue;
 
-                        // 1. Detect Waterfall: Check if an adjacent tile is at a lower elevation
                         bool is_cliff_drop = false;
                         const int neighbor_offsets[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-
                         for (auto &off : neighbor_offsets)
                         {
                             int nx = wx + off[0];
                             int nz = wz + off[1];
-
                             if (nx >= 0 && nx < w && nz >= 0 && nz < h)
                             {
                                 int neighbor_elev = town.GetElevation(nx, nz);
-                                // If current tile is higher than neighbor, it's a potential waterfall edge
                                 if (tile.elevation > neighbor_elev && neighbor_elev != -1)
                                 {
                                     is_cliff_drop = true;
@@ -187,19 +186,15 @@ namespace cozy::world
                             }
                         }
 
-                        // 2. Assignment Logic
                         if (is_cliff_drop || tile.type == TileType::CLIFF)
-                        {
                             tile.type = TileType::WATERFALL;
-                        }
                         else if (tile.type == TileType::SAND)
-                        {
                             tile.type = TileType::RIVER_MOUTH;
-                        }
                         else
-                        {
                             tile.type = TileType::RIVER;
-                        }
+
+                        // Track this tile for the auto-tiling pass
+                        painted_tracker.insert({wx, wz});
                     }
                 }
             }
@@ -344,7 +339,10 @@ namespace cozy::world
             std::uniform_int_distribution<int> meander_chance(0, 99);
             std::uniform_int_distribution<int> horizontal_length(0, 2);
 
-            // Generate target column for each acre row
+            // Tracker for all tiles changed to water to perform autotiling at the end
+            std::unordered_set<glm::ivec2, utils::PairHash> river_tiles;
+
+            // 1. Generate target column for each acre row
             std::vector<int> column_targets(Town::HEIGHT);
             int current_col = col_dist(rng);
             column_targets[0] = current_col;
@@ -352,7 +350,6 @@ namespace cozy::world
             int consecutive_straight = 0;
             const int max_consecutive_straight = 2;
 
-            // Generate river path through all acres
             for (int az = 0; az < Town::HEIGHT - 1; ++az)
             {
                 int next_col = current_col;
@@ -366,8 +363,7 @@ namespace cozy::world
                     int target_col_change = wants_long_horizontal ? horizontal_length(rng) : 1;
 
                     std::vector<int> candidates;
-
-                    // Try moving right
+                    // Right move check
                     if (current_col + target_col_change < Town::WIDTH)
                     {
                         bool valid = true;
@@ -382,8 +378,7 @@ namespace cozy::world
                         if (valid)
                             candidates.push_back(current_col + target_col_change);
                     }
-
-                    // Try moving left
+                    // Left move check
                     if (current_col - target_col_change >= 0)
                     {
                         bool valid = true;
@@ -414,33 +409,27 @@ namespace cozy::world
                         consecutive_straight = 0;
                     }
                     else
-                    {
                         consecutive_straight++;
-                    }
                 }
                 else
-                {
                     consecutive_straight++;
-                }
 
                 column_targets[az + 1] = next_col;
                 current_col = next_col;
             }
 
-            // Generate river wiggle
+            // 2. Generate river wiggle parameters
             std::uniform_real_distribution<float> amplitude_dist(1.35f, 1.4f);
             std::uniform_real_distribution<float> frequency_dist(0.35f, 0.55f);
             std::uniform_real_distribution<float> phase_dist(0.0f, 6.28318f);
 
             const float wiggle_amplitude = amplitude_dist(rng);
             const float wiggle_frequency = frequency_dist(rng);
-            const float wiggle_phase_x = phase_dist(rng); // For X-axis wiggle
-            const float wiggle_phase_z = phase_dist(rng); // For Z-axis wiggle
+            const float wiggle_phase_x = phase_dist(rng);
+            const float wiggle_phase_z = phase_dist(rng);
 
             const int total_height = Town::HEIGHT * Acre::SIZE;
-
-            // Calculate river path with corner rounding and wiggles
-            std::vector<std::pair<int, int>> river_path; // Store (x, z) pairs
+            std::vector<std::pair<int, int>> river_path;
 
             for (int z = 0; z < total_height; ++z)
             {
@@ -448,33 +437,26 @@ namespace cozy::world
                 int rounded_x = ApplyCornerRounding(z, base_x, column_targets);
                 int wiggle_x = CalculateWiggle(z, wiggle_amplitude, wiggle_frequency, wiggle_phase_x);
 
-                // Check if we're in a horizontal corner section
                 int local_z = z % Acre::SIZE;
                 int curr_acre = z / Acre::SIZE;
                 bool is_horizontal_section = false;
 
                 if (curr_acre < Town::HEIGHT - 1 && local_z == TownConfig::RIVER_CONNECTION_POINT_OFFSET)
                 {
-                    int from_col = column_targets[curr_acre];
-                    int to_col = column_targets[curr_acre + 1];
-                    if (from_col != to_col)
-                    {
+                    if (column_targets[curr_acre] != column_targets[curr_acre + 1])
                         is_horizontal_section = true;
-                    }
                 }
 
-                // Apply wiggle in Z direction for horizontal sections
                 int final_z = z;
                 if (is_horizontal_section)
                 {
                     int wiggle_z = CalculateWiggle(rounded_x, wiggle_amplitude, wiggle_frequency, wiggle_phase_z);
                     final_z = z + wiggle_z;
                 }
-
                 river_path.push_back({rounded_x + wiggle_x, final_z});
             }
 
-            // Carve the river with gap filling
+            // 3. Carve the river and track painted tiles
             for (size_t i = 0; i < river_path.size(); ++i)
             {
                 auto [x, z] = river_path[i];
@@ -486,33 +468,27 @@ namespace cozy::world
                     // Fill X gaps
                     if (prev_x != x && prev_z == z)
                     {
-                        FillGaps(town, prev_x, x, z, halfWidth);
+                        int dir = (x > prev_x) ? 1 : -1;
+                        for (int fill_x = prev_x; fill_x != x; fill_x += dir)
+                            CarveRiverSection(town, fill_x, z, halfWidth, river_tiles);
                     }
                     // Fill Z gaps
                     else if (prev_z != z && prev_x == x)
                     {
                         int dir = (z > prev_z) ? 1 : -1;
                         for (int fill_z = prev_z; fill_z != z; fill_z += dir)
-                        {
-                            CarveRiverSection(town, x, fill_z, halfWidth);
-                        }
+                            CarveRiverSection(town, x, fill_z, halfWidth, river_tiles);
                     }
-                    // Fill diagonal gaps (both X and Z changed)
+                    // Fill diagonal gaps (Bresenham)
                     else if (prev_x != x && prev_z != z)
                     {
-                        // Use Bresenham-like approach to fill diagonal
-                        int dx = std::abs(x - prev_x);
-                        int dz = std::abs(z - prev_z);
-                        int sx = (x > prev_x) ? 1 : -1;
-                        int sz = (z > prev_z) ? 1 : -1;
+                        int dx = std::abs(x - prev_x), dz = std::abs(z - prev_z);
+                        int sx = (x > prev_x) ? 1 : -1, sz = (z > prev_z) ? 1 : -1;
                         int err = dx - dz;
-
-                        int curr_x = prev_x;
-                        int curr_z = prev_z;
-
+                        int curr_x = prev_x, curr_z = prev_z;
                         while (curr_x != x || curr_z != z)
                         {
-                            CarveRiverSection(town, curr_x, curr_z, halfWidth);
+                            CarveRiverSection(town, curr_x, curr_z, halfWidth, river_tiles);
                             int e2 = 2 * err;
                             if (e2 > -dz)
                             {
@@ -527,11 +503,26 @@ namespace cozy::world
                         }
                     }
                 }
-
-                CarveRiverSection(town, x, z, halfWidth);
+                CarveRiverSection(town, x, z, halfWidth, river_tiles);
             }
 
+            // 4. Create River Mouths (updates river_tiles types to RIVER_MOUTH and handles sand/grass cleanup)
             CreateRiverMouths(town, rng);
+
+            // 5. Autotile Pass
+            // We iterate over the tracked tiles to set the correct bitmask indices
+            for (const auto &pos : river_tiles)
+            {
+                auto [a, l] = utils::GetTileCoords(pos.x, pos.y);
+                Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
+
+                // Only autotile water types (River, Mouth, etc.)
+                if (utils::IsAnyWater(tile.type))
+                {
+                    // Note: Ensure CalculatePondBlobIndex checks for IsAnyWater neighbors
+                    tile.autotileIndex = autotile::CalculatePondBlobIndex(town, pos.x, pos.y);
+                }
+            }
         }
     }
 }
