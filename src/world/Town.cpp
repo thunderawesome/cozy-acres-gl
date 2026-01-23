@@ -132,11 +132,12 @@ namespace cozy::world
     std::vector<rendering::TileInstance> Town::GenerateRenderData() const
     {
         std::vector<rendering::TileInstance> instances;
-        instances.reserve(WIDTH * HEIGHT * Acre::SIZE * Acre::SIZE * 2);
+        // We only need one instance per tile now, so we can reserve exactly what we need
+        instances.reserve(WIDTH * HEIGHT * Acre::SIZE * Acre::SIZE);
 
-        for (int ax = 0; ax < WIDTH; ++ax) // Rows (A, B, C...)
+        for (int ax = 0; ax < WIDTH; ++ax)
         {
-            for (int az = 0; az < HEIGHT; ++az) // Columns (1, 2, 3...)
+            for (int az = 0; az < HEIGHT; ++az)
             {
                 for (int lx = 0; lx < Acre::SIZE; ++lx)
                 {
@@ -146,28 +147,18 @@ namespace cozy::world
 
                         float worldX = static_cast<float>(ax * Acre::SIZE + lx);
                         float worldZ = static_cast<float>(az * Acre::SIZE + lz);
+                        float worldY = static_cast<float>(tile.elevation);
 
-                        // Generate geometry for the surface and dirt filler below
-                        for (int y = 0; y <= tile.elevation; ++y)
-                        {
-                            rendering::TileInstance inst;
-                            inst.modelMatrix = glm::translate(
-                                glm::mat4(1.0f),
-                                glm::vec3(worldX, static_cast<float>(y), worldZ));
+                        rendering::TileInstance inst;
+                        inst.modelMatrix = glm::translate(
+                            glm::mat4(1.0f),
+                            glm::vec3(worldX, worldY, worldZ));
 
-                            if (y < tile.elevation)
-                            {
-                                inst.color = {0.45f, 0.35f, 0.25f}; // Dirt filler
-                            }
-                            else
-                            {
-                                // Surface coloring logic
-                                inst.color = GetTileColor(tile, y);
-                            }
+                        // Only render the surface
+                        inst.color = GetTileColor(tile, tile.elevation);
+                        inst.padding = 0.0f;
 
-                            inst.padding = 0.0f;
-                            instances.push_back(inst);
-                        }
+                        instances.push_back(inst);
                     }
                 }
             }
