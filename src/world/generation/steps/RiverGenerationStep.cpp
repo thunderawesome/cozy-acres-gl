@@ -5,7 +5,7 @@
 #include "world/data/Tile.h"
 #include "world/data/TownConfig.h"
 #include "world/generation/utils/WorldGenUtils.h"
-#include "world/generation/utils/AutotileUtils.h"
+#include "world/generation/utils/AutoTileUtils.h"
 
 #include <vector>
 #include <algorithm>
