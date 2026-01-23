@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace cozy::world::autotile
+namespace cozy::world::utils
 {
     // Standard 47-tile Blob Mapping (0-255 -> 0-46)
     // This is the actual industry-standard Blob 47 mapping

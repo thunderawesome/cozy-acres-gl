@@ -520,7 +520,7 @@ namespace cozy::world
                 if (utils::IsAnyWater(tile.type))
                 {
                     // Note: Ensure CalculatePondBlobIndex checks for IsAnyWater neighbors
-                    tile.autotileIndex = autotile::CalculatePondBlobIndex(town, pos.x, pos.y);
+                    tile.autotileIndex = utils::CalculatePondBlobIndex(town, pos.x, pos.y);
                 }
             }
         }

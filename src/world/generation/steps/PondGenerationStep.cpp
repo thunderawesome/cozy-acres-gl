@@ -280,7 +280,7 @@ namespace cozy::world
                 auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
                 if (tile.type == TileType::POND)
                 {
-                    tile.autotileIndex = autotile::CalculatePondBlobIndex(town, pos.x, pos.y);
+                    tile.autotileIndex = utils::CalculatePondBlobIndex(town, pos.x, pos.y);
                 }
             }
         }
