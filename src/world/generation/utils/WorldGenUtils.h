@@ -8,7 +8,7 @@
 
 namespace cozy::world
 {
-    class Town; // Forward declaration to avoid circular includes
+    class Town;
 }
 
 namespace cozy::world::utils
@@ -23,7 +23,6 @@ namespace cozy::world::utils
     };
 
     // --- Dimension Helpers ---
-    // Note: We access these via a helper to avoid needing Town.h in this header
     int GetWorldWidth();
     int GetWorldHeight();
 

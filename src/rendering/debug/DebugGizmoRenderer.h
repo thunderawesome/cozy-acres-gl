@@ -1,4 +1,3 @@
-// src/rendering/debug/DebugGizmoRenderer.h
 #pragma once
 #include <memory>
 #include <vector>
@@ -11,7 +10,6 @@ namespace cozy::core
 namespace cozy::rendering
 {
     class LightManager;
-    // Changed to struct to match definitions and fix C4099
     struct DirectionalLight;
     struct PointLight;
 }
@@ -38,7 +36,6 @@ namespace cozy::rendering::debug
     private:
         void CreateDebugMeshes();
 
-        // Removed core::ICamera from these helper methods
         void RenderDirectionalLight(const DirectionalLight &light, const core::IShader &shader);
         void RenderPointLight(const PointLight &light, const core::IShader &shader);
 

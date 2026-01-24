@@ -17,7 +17,7 @@
 #include "core/input/InputSystem.h"
 #include "core/time/TimeSystem.h"
 #include "world/Town.h"
-#include "world/presentation/TownPresenter.h" // ADDED: New Presenter logic
+#include "world/presentation/TownPresenter.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glad/glad.h>
@@ -77,7 +77,7 @@ namespace cozy::app
         m_lightManager->SetDirectionalLight(sun);
 
         rendering::PointLight light1;
-        light1.position = glm::vec3(20.0f, 15.0f, 20.0f);
+        light1.position = glm::vec3(45.0f, 10.0f, 45.0f);
         light1.color = glm::vec3(1.0f, 0.9f, 0.7f) * 2.0f;
         light1.constant = 1.0f;
         light1.linear = 0.09f;

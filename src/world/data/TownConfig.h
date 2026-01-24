@@ -1,5 +1,6 @@
 #pragma once
 #include <glm/glm.hpp>
+
 namespace cozy::world
 {
     struct TownConfig

@@ -13,7 +13,7 @@ namespace cozy::rendering
 
         glBindVertexArray(m_VAO);
 
-        // 1. Static Geometry (The Cube)
+        // 1. Static Geometry Data
         glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
         glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(float), vertices, GL_STATIC_DRAW);
 

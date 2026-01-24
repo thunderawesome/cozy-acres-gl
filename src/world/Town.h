@@ -5,7 +5,6 @@
 #include <memory>
 #include "data/Acre.h"
 
-// Forward declarations to prevent circular dependencies
 namespace cozy::world
 {
     struct TownConfig;
