@@ -13,7 +13,7 @@ namespace cozy::rendering
 
         glBindVertexArray(m_VAO);
 
-        // 1. Static Geometry (The Cube)
+        // 1. Static Geometry Data
         glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
         glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(float), vertices, GL_STATIC_DRAW);
 
@@ -29,7 +29,7 @@ namespace cozy::rendering
         glBindBuffer(GL_ARRAY_BUFFER, m_InstanceVBO);
 
         // Matrix takes 4 attribute slots (locations 3, 4, 5, 6)
-        size_t instanceStride = sizeof(TileInstance);
+        GLsizei instanceStride = (GLsizei)sizeof(TileInstance);
         for (int i = 0; i < 4; i++)
         {
             glEnableVertexAttribArray(3 + i);

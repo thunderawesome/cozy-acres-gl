@@ -8,7 +8,7 @@
 
 namespace cozy::rendering
 {
-    void OpenGLRenderer::Initialize(void *nativeWindowHandle)
+    void OpenGLRenderer::Initialize(void *)
     {
         if (!gladLoadGL())
         {

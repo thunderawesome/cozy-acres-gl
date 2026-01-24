@@ -2,12 +2,12 @@
 #include <memory>
 #include <vector>
 #include "world/Town.h"
+#include "world/data/TownConfig.h"
 
 namespace cozy::platform
 {
     class IWindow;
 }
-
 namespace cozy::core
 {
     class ICamera;
@@ -15,16 +15,13 @@ namespace cozy::core
     class TimeSystem;
     class IShader;
 }
-
 namespace cozy::rendering
 {
     class IRenderer;
-    class OpenGLMesh;
     class OpenGLShader;
     class OpenGLTexture;
     class OpenGLInstancedMesh;
     class LightManager;
-
     namespace debug
     {
         class DebugGizmoRenderer;
@@ -36,6 +33,7 @@ namespace cozy::app
     class Engine
     {
     private:
+        // Core Systems
         std::unique_ptr<platform::IWindow> m_window;
         std::unique_ptr<rendering::IRenderer> m_renderer;
         std::unique_ptr<core::ICamera> m_camera;
@@ -53,7 +51,7 @@ namespace cozy::app
         // Lighting system
         std::unique_ptr<rendering::LightManager> m_lightManager;
 
-        // Debug visualization (CORRECTED)
+        // Debug visualization
         std::unique_ptr<rendering::debug::DebugGizmoRenderer> m_debugGizmos;
         std::unique_ptr<core::IShader> m_debugShader;
         bool m_showDebugGizmos{false};

@@ -99,13 +99,13 @@ namespace cozy::world
             const int exit_x = exit_col * Acre::SIZE + TownConfig::RIVER_CONNECTION_POINT_OFFSET;
             const int base_z = acre_z * Acre::SIZE;
 
-            int river_elev = town.GetElevation(entry_x, base_z);
+            int river_elev = utils::GetElevation(town, entry_x, base_z);
             if (river_elev == -1)
                 return false;
 
             auto update = [&](int x, int z) -> bool
             {
-                int elev = town.GetElevation(x, z);
+                int elev = utils::GetElevation(town, x, z);
                 if (elev == -1 || elev > river_elev)
                     return false;
                 river_elev = std::min(river_elev, elev);
@@ -177,7 +177,7 @@ namespace cozy::world
                             int nz = wz + off[1];
                             if (nx >= 0 && nx < w && nz >= 0 && nz < h)
                             {
-                                int neighbor_elev = town.GetElevation(nx, nz);
+                                int neighbor_elev = utils::GetElevation(town, nx, nz);
                                 if (tile.elevation > neighbor_elev && neighbor_elev != -1)
                                 {
                                     is_cliff_drop = true;
@@ -200,11 +200,10 @@ namespace cozy::world
             }
         }
 
-        void CreateRiverMouths(Town &town, std::mt19937_64 &rng)
+        void CreateRiverMouths(Town &town, [[maybe_unused]] std::mt19937_64 &rng)
         {
             const int total_w = Town::WIDTH * Acre::SIZE;
             const int total_h = Town::HEIGHT * Acre::SIZE;
-            const int ocean_acre_row = Town::BEACH_ACRE_ROW;
 
             std::vector<int> mouth_x_coords;
             int mouth_z = -1;
@@ -256,9 +255,6 @@ namespace cozy::world
             // 2. Spawn the rounded grass inlets (Teardrops)
             if (!mouth_x_coords.empty())
             {
-                // Start higher up to tuck the base under mainland grass
-                int start_z_local = (mouth_z % Acre::SIZE) - 2;
-
                 // 3. Cleanup Pass: Prevent sand/river contact and isolated sand pockets
                 for (int z = 0; z < total_h; ++z)
                 {
@@ -520,7 +516,7 @@ namespace cozy::world
                 if (utils::IsAnyWater(tile.type))
                 {
                     // Note: Ensure CalculatePondBlobIndex checks for IsAnyWater neighbors
-                    tile.autotileIndex = utils::CalculatePondBlobIndex(town, pos.x, pos.y);
+                    tile.autotileIndex = static_cast<uint8_t>(utils::CalculatePondBlobIndex(town, pos.x, pos.y));
                 }
             }
         }

@@ -1,6 +1,5 @@
 #include "CliffGenerationStep.h"
 #include "world/generation/utils/WorldGenUtils.h"
-
 #include "world/Town.h"
 #include "world/data/Acre.h"
 #include "world/data/Tile.h"
@@ -8,275 +7,158 @@
 
 #include <algorithm>
 #include <array>
-#include <vector>
-#include <random>
-#include <cstdint>
-#include <cmath>
-#include <glm/glm.hpp>
 
-namespace cozy::world
+namespace cozy::world::cliffs
 {
-    namespace cliffs
+    // --- CliffBoundary Logic ---
+
+    void CliffBoundary::Generate(const TownConfig &config, std::mt19937_64 &rng, const std::vector<int> &targets)
     {
-        namespace
+        const int total_width = utils::GetWorldWidth();
+        z_values.assign(total_width, 0);
+
+        std::uniform_int_distribution<int> seed_dist(0, 100000);
+        int seed = seed_dist(rng);
+
+        for (int x = 0; x < total_width; ++x)
         {
-            inline std::pair<glm::ivec2, glm::ivec2> GetTileCoords(int wx, int wz)
-            {
-                return {
-                    {wx / Acre::SIZE, wz / Acre::SIZE},
-                    {wx % Acre::SIZE, wz % Acre::SIZE}};
-            }
+            int curr_acre = x / Acre::SIZE;
+            int next_acre = std::min(curr_acre + 1, Town::WIDTH - 1);
+            int local_x = x % Acre::SIZE;
 
-            // Build stepped boundary with organic variation
-            std::vector<int> BuildOrganicBoundary(
-                const std::array<int, Town::WIDTH> &targets,
-                int connection_point,
-                std::mt19937_64 &rng,
-                int variation_amount = 3)
-            {
-                const int total_width = Town::WIDTH * Acre::SIZE;
-                std::vector<int> boundary(total_width);
+            int base_z = (local_x <= config.CLIFF_CONNECTION_POINT_OFFSET) ? targets[curr_acre] : targets[next_acre];
 
-                std::uniform_int_distribution<int> seed_dist(0, 100000);
-                int seed = seed_dist(rng);
+            float noise = utils::SmoothNoise(x * TownConfig::CLIFF_NOISE_SCALE, 0, seed);
+            int variation = static_cast<int>((noise - 0.5f) * 2.0f * config.cliffVariationAmount);
 
-                for (int x = 0; x < total_width; ++x)
-                {
-                    int curr_acre = x / Acre::SIZE;
-                    int next_acre = std::min(curr_acre + 1, Town::WIDTH - 1);
-                    int local_x = x % Acre::SIZE;
+            z_values[x] = base_z + variation;
+        }
+    }
 
-                    // Get base stepped value
-                    int base_z = (local_x <= connection_point)
-                                     ? targets[curr_acre]
-                                     : targets[next_acre];
-
-                    // Add organic variation using noise
-                    float noise = utils::SmoothNoise(x * TownConfig::CLIFF_NOISE_SCALE, 0, seed);
-                    // Map noise from [0,1] to [-variation, +variation]
-                    int variation = static_cast<int>((noise - 0.5f) * 2.0f * variation_amount);
-
-                    boundary[x] = base_z + variation;
-                }
-
-                return boundary;
-            }
-
-            // Smooth boundary horizontally for gentler curves
-            void SmoothBoundary(std::vector<int> &boundary, int iterations = 3)
-            {
-                int width = boundary.size();
-
-                for (int iter = 0; iter < iterations; ++iter)
-                {
-                    std::vector<int> temp = boundary;
-
-                    for (int x = 2; x < width - 2; ++x)
-                    {
-                        // 5-point moving average for smooth curves
-                        int sum = boundary[x - 2] + boundary[x - 1] + boundary[x] +
-                                  boundary[x + 1] + boundary[x + 2];
-                        temp[x] = sum / 5;
-                    }
-
-                    boundary = temp;
-                }
-            }
-
-            // Round corners by smoothing the boundary near acre transitions
-            void RoundBoundaryCorners(
-                std::vector<int> &boundary,
-                const std::array<int, Town::WIDTH> &targets,
-                int connection_point)
-            {
-                int width = boundary.size();
-
-                // Find acre transition points and apply extra smoothing
-                for (int ax = 0; ax < Town::WIDTH - 1; ++ax)
-                {
-                    if (targets[ax] == targets[ax + 1])
-                        continue; // No elevation change, skip
-
-                    // Find the transition region
-                    int transition_x = ax * Acre::SIZE + connection_point;
-                    int radius = 8; // Smooth 8 tiles on each side of transition
-
-                    for (int x = std::max(0, transition_x - radius);
-                         x <= std::min(width - 1, transition_x + radius); ++x)
-                    {
-                        int left_x = std::max(0, x - 3);
-                        int right_x = std::min(width - 1, x + 3);
-
-                        // Extra smoothing at corners
-                        int sum = 0;
-                        int count = 0;
-                        for (int sx = left_x; sx <= right_x; ++sx)
-                        {
-                            sum += boundary[sx];
-                            count++;
-                        }
-
-                        boundary[x] = sum / count;
-                    }
-                }
-            }
-
-            // Apply elevation based on boundaries with smooth transitions
-            void ApplyElevations(
-                Town &town,
-                const std::vector<int> &mid_boundary,
-                const std::vector<int> &high_boundary,
-                bool use_three_tiers)
-            {
-                const int w = Town::WIDTH * Acre::SIZE;
-                const int h = Town::HEIGHT * Acre::SIZE;
-
-                for (int wx = 0; wx < w; ++wx)
-                {
-                    for (int wz = 0; wz < h; ++wz)
-                    {
-                        int elevation = 0;
-
-                        if (wz < mid_boundary[wx])
-                            elevation = 1;
-                        if (use_three_tiers && wz < high_boundary[wx])
-                            elevation = 2;
-
-                        auto [acre_pos, local_pos] = GetTileCoords(wx, wz);
-                        town.GetAcre(acre_pos.x, acre_pos.y)
-                            .tiles[local_pos.y][local_pos.x]
-                            .elevation = static_cast<std::int8_t>(elevation);
-                    }
-                }
-            }
-
-            void TagCliffFaces(Town &town)
-            {
-                const int w = Town::WIDTH * Acre::SIZE;
-                const int h = Town::HEIGHT * Acre::SIZE;
-
-                constexpr int dx[4] = {1, -1, 0, 0};
-                constexpr int dz[4] = {0, 0, 1, -1};
-
-                for (int wx = 0; wx < w; ++wx)
-                {
-                    for (int wz = 0; wz < h; ++wz)
-                    {
-                        auto [a, l] = GetTileCoords(wx, wz);
-                        Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
-
-                        if (tile.elevation <= 0)
-                            continue;
-
-                        bool is_cliff = false;
-                        for (int d = 0; d < 4; ++d)
-                        {
-                            int nx = wx + dx[d];
-                            int nz = wz + dz[d];
-
-                            if (nx < 0 || nx >= w || nz < 0 || nz >= h)
-                                continue;
-
-                            auto [na, nl] = GetTileCoords(nx, nz);
-                            if (town.GetAcre(na.x, na.y).tiles[nl.y][nl.x].elevation < tile.elevation)
-                            {
-                                is_cliff = true;
-                                break;
-                            }
-                        }
-
-                        if (is_cliff)
-                        {
-                            tile.type = TileType::CLIFF;
-                        }
-                    }
-                }
-            }
-
-        } // anonymous namespace
-
-        void Execute(
-            Town &town,
-            std::mt19937_64 &rng,
-            const TownConfig &config)
+    void CliffBoundary::Smooth(int iterations)
+    {
+        for (int iter = 0; iter < iterations; ++iter)
         {
-            const int total_width = Town::WIDTH * Acre::SIZE;
-
-            // 1. Decide structure
-            std::bernoulli_distribution high_plateau_dist(config.highPlateauChance);
-            bool use_three_tiers = high_plateau_dist(rng);
-
-            int minPlateauRow = config.minPlateauRow;
-            if (use_three_tiers)
+            std::vector<int> temp = z_values;
+            for (int x = 2; x < (int)z_values.size() - 2; ++x)
             {
-                minPlateauRow += 2;
+                temp[x] = (z_values[x - 2] + z_values[x - 1] + z_values[x] + z_values[x + 1] + z_values[x + 2]) / 5;
             }
+            z_values = std::move(temp);
+        }
+    }
 
-            // 2. Generate acre-level targets (maintains connection rules)
-            std::uniform_int_distribution<int> mid_dist(
-                minPlateauRow,
-                config.maxPlateauRow);
+    void CliffBoundary::RoundCorners(const std::vector<int> &targets, int connection_point)
+    {
+        int width = static_cast<int>(z_values.size());
+        int radius = 8;
 
-            std::array<int, Town::WIDTH> mid_targets{};
-            for (int ax = 0; ax < Town::WIDTH; ++ax)
+        for (int ax = 0; ax < Town::WIDTH - 1; ++ax)
+        {
+            if (targets[ax] == targets[ax + 1])
+                continue;
+
+            int transition_x = ax * Acre::SIZE + connection_point;
+            for (int x = std::max(0, transition_x - radius); x <= std::min(width - 1, transition_x + radius); ++x)
             {
-                mid_targets[ax] = (mid_dist(rng) + 1) * Acre::SIZE;
-            }
-
-            // 3. Build organic boundary from targets
-            auto mid_boundary = BuildOrganicBoundary(
-                mid_targets,
-                config.CLIFF_CONNECTION_POINT_OFFSET,
-                rng,
-                config.cliffVariationAmount); // variation_amount in tiles
-
-            // 4. Smooth for gentle curves
-            SmoothBoundary(mid_boundary, config.cliffSmoothIterations);
-
-            // 5. Round corners at acre transitions
-            RoundBoundaryCorners(mid_boundary, mid_targets, config.CLIFF_CONNECTION_POINT_OFFSET);
-
-            // 6. Optional high plateau
-            std::vector<int> high_boundary(total_width, 0);
-            if (use_three_tiers)
-            {
-                std::uniform_int_distribution<int> high_dist(
-                    config.minHighPlateauRowOffset,
-                    config.maxHighPlateauRowOffset);
-
-                std::array<int, Town::WIDTH> high_targets{};
-                for (int ax = 0; ax < Town::WIDTH; ++ax)
+                int sum = 0, count = 0;
+                for (int sx = std::max(0, x - 3); sx <= std::min(width - 1, x + 3); ++sx)
                 {
-                    int candidate = (high_dist(rng) + 1) * Acre::SIZE;
-                    int max_allowed = mid_targets[ax] - Acre::SIZE;
-                    high_targets[ax] = std::clamp(candidate, Acre::SIZE, max_allowed);
+                    sum += z_values[sx];
+                    count++;
                 }
+                z_values[x] = sum / count;
+            }
+        }
+    }
 
-                high_boundary = BuildOrganicBoundary(
-                    high_targets,
-                    config.CLIFF_CONNECTION_POINT_OFFSET,
-                    rng,
-                    config.cliffVariationAmount);
+    // --- Mutation Helpers ---
 
-                SmoothBoundary(high_boundary, config.cliffSmoothIterations);
-                RoundBoundaryCorners(high_boundary, high_targets, config.CLIFF_CONNECTION_POINT_OFFSET);
+    void ApplyElevations(Town &town, const CliffBoundary &mid, const CliffBoundary &high, bool threeTiers)
+    {
+        for (int wx = 0; wx < utils::GetWorldWidth(); ++wx)
+        {
+            for (int wz = 0; wz < utils::GetWorldHeight(); ++wz)
+            {
+                int elevation = 0;
+                if (wz < mid.z_values[wx])
+                    elevation = 1;
+                if (threeTiers && wz < high.z_values[wx])
+                    elevation = 2;
 
-                // Safety clamp
-                for (int x = 0; x < total_width; ++x)
+                if (auto *tile = utils::GetTileSafe(town, wx, wz))
                 {
-                    int acre_x = x / Acre::SIZE;
-                    int safe_max = mid_targets[acre_x] - Acre::SIZE;
-                    high_boundary[x] = std::min(high_boundary[x], safe_max);
-                    high_boundary[x] = std::max(high_boundary[x], 0);
+                    tile->elevation = static_cast<std::int8_t>(elevation);
                 }
             }
+        }
+    }
 
-            // 7. Apply elevations
-            ApplyElevations(town, mid_boundary, high_boundary, use_three_tiers);
+    void TagCliffFaces(Town &town)
+    {
+        for (int wx = 0; wx < utils::GetWorldWidth(); ++wx)
+        {
+            for (int wz = 0; wz < utils::GetWorldHeight(); ++wz)
+            {
+                auto *tile = utils::GetTileSafe(town, wx, wz);
+                if (!tile || tile->elevation <= 0)
+                    continue;
 
-            // 8. Tag cliff faces
-            TagCliffFaces(town);
+                for (auto &neighborPos : utils::GetNeighbors4(wx, wz))
+                {
+                    if (auto *nt = utils::GetTileSafe(town, neighborPos.x, neighborPos.y))
+                    {
+                        if (nt->elevation < tile->elevation)
+                        {
+                            tile->type = TileType::CLIFF;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Main Orchestration ---
+
+    void Execute(Town &town, std::mt19937_64 &rng, const TownConfig &config)
+    {
+        std::bernoulli_distribution high_dist(config.highPlateauChance);
+        bool use_three_tiers = high_dist(rng);
+
+        auto GenerateTargets = [&](int minRow)
+        {
+            std::vector<int> targets(Town::WIDTH);
+            std::uniform_int_distribution<int> dist(minRow, config.maxPlateauRow);
+            for (int i = 0; i < Town::WIDTH; ++i)
+                targets[i] = (dist(rng) + 1) * Acre::SIZE;
+            return targets;
+        };
+
+        // Mid Plateau
+        auto mid_targets = GenerateTargets(use_three_tiers ? config.minPlateauRow + 2 : config.minPlateauRow);
+        CliffBoundary mid;
+        mid.Generate(config, rng, mid_targets);
+        mid.Smooth(config.cliffSmoothIterations);
+        mid.RoundCorners(mid_targets, config.CLIFF_CONNECTION_POINT_OFFSET);
+
+        // High Plateau
+        CliffBoundary high;
+        if (use_three_tiers)
+        {
+            std::vector<int> high_targets(Town::WIDTH);
+            std::uniform_int_distribution<int> h_dist(config.minHighPlateauRowOffset, config.maxHighPlateauRowOffset);
+            for (int i = 0; i < Town::WIDTH; ++i)
+            {
+                int candidate = (h_dist(rng) + 1) * Acre::SIZE;
+                high_targets[i] = std::clamp(candidate, Acre::SIZE, mid_targets[i] - Acre::SIZE);
+            }
+            high.Generate(config, rng, high_targets);
+            high.Smooth(config.cliffSmoothIterations);
+            high.RoundCorners(high_targets, config.CLIFF_CONNECTION_POINT_OFFSET);
         }
 
-    } // namespace cliffs
-} // namespace cozy::world
+        ApplyElevations(town, mid, high, use_three_tiers);
+        TagCliffFaces(town);
+    }
+}

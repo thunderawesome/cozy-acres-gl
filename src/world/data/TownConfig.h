@@ -1,5 +1,6 @@
 #pragma once
 #include <glm/glm.hpp>
+
 namespace cozy::world
 {
     struct TownConfig
@@ -33,8 +34,19 @@ namespace cozy::world
         int minPondRadius = 4;
         int maxPondRadius = 5;
         float pondNoiseScale = 0.05f;   // How frequent the "wiggles" are (0.05 - 0.2)
-        float pondNoiseStrength = 3.0f; // How deep the coves/protrusions are
+        float pondNoiseStrength = 1.0f; // How deep the coves/protrusions are
         int pondMargin = 6;             // Extra tiles to scan around the radius
         int pondMinNeighbors = 3;       // Minimum water neighbors to avoid being deleted
+
+        // Ocean/Beach parameters
+        int beachBaseDepth = 10;
+        int beachAmplitudeMin = 1;
+        int beachAmplitudeMax = 3;
+        float beachFreqMin = 0.1f;
+        float beachFreqMax = 0.2f;
+        int beachSandToOceanBuffer = 3;
+        int grassBlobSizeMin = 6;
+        int grassBlobSizeMax = 8;
+        float grassBlobCurveMagnitude = 1.0f;
     };
 }
