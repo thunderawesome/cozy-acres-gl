@@ -33,7 +33,7 @@ namespace cozy::world
         int minPondRadius = 4;
         int maxPondRadius = 5;
         float pondNoiseScale = 0.05f;   // How frequent the "wiggles" are (0.05 - 0.2)
-        float pondNoiseStrength = 3.0f; // How deep the coves/protrusions are
+        float pondNoiseStrength = 1.0f; // How deep the coves/protrusions are
         int pondMargin = 6;             // Extra tiles to scan around the radius
         int pondMinNeighbors = 3;       // Minimum water neighbors to avoid being deleted
     };

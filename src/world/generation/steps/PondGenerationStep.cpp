@@ -6,282 +6,199 @@
 #include "world/generation/utils/WorldGenUtils.h"
 #include "world/generation/utils/AutoTileUtils.h"
 
-#include <random>
-#include <cmath>
 #include <unordered_set>
-#include <queue>
-#include <vector>
 #include <algorithm>
-#include <glm/glm.hpp>
 
-namespace cozy::world
+namespace cozy::world::ponds
 {
-    namespace ponds
+    bool PondBlob::IsPointInside(int wx, int wz, const TownConfig &config) const
     {
-        int CountWaterCliffRampTiles(Town &town, int acre_x, int acre_y)
-        {
-            int count = 0;
-            auto &acre = town.GetAcre(acre_x, acre_y);
+        float nX = utils::SmoothNoise(wx * config.pondNoiseScale, wz * config.pondNoiseScale, seed) * config.pondNoiseStrength;
+        float nZ = utils::SmoothNoise(wx * config.pondNoiseScale, wz * config.pondNoiseScale, seed + 7919) * config.pondNoiseStrength;
 
-            for (int z = 0; z < Acre::SIZE; ++z)
-            {
-                for (int x = 0; x < Acre::SIZE; ++x)
-                {
-                    auto &tile = acre.tiles[z][x];
-                    if (utils::IsAnyWater(tile.type) ||
-                        tile.type == TileType::CLIFF ||
-                        tile.type == TileType::RAMP)
-                    {
-                        count++;
-                    }
-                }
-            }
-            return count;
+        float dx = (static_cast<float>(wx) + nX - center.x) / radius_x;
+        float dz = (static_cast<float>(wz) + nZ - center.y) / radius_z;
+
+        return (dx * dx + dz * dz <= 1.0f);
+    }
+
+    // PondGenerationStep.cpp
+
+    bool IsAreaClearForPond(Town &town, glm::ivec2 center, int max_radius, const TownConfig &config)
+    {
+        const int world_w = Town::WIDTH * Acre::SIZE;
+        // Ponds should stay above the beach/ocean row (Row F)
+        const int ocean_limit_z = (Town::HEIGHT - 1) * Acre::SIZE;
+
+        // 1. Calculate the "Wobble Buffer"
+        // We take the max radius and add the max potential noise displacement
+        // plus a small hard margin to ensure no part of the pond hits an edge.
+        int noise_buffer = static_cast<int>(std::ceil(config.pondNoiseStrength)) + 2;
+        int safe_radius = max_radius + noise_buffer;
+
+        // 2. Map Boundary Check (Using safe_radius)
+        // This prevents the "blob" from leaking outside the array bounds or into the ocean
+        if (center.x < safe_radius || center.x >= world_w - safe_radius ||
+            center.y < safe_radius || center.y >= ocean_limit_z - safe_radius)
+        {
+            return false;
         }
 
-        std::vector<glm::ivec2> GetBestAcresForPond(Town &town)
+        // 3. Elevation/Validity Check
+        // Using Town's internal logic to ensure the center is on valid terrain
+        if (town.GetElevation(center.x, center.y) == -1)
         {
-            struct AcreScore
-            {
-                glm::ivec2 pos;
-                int obstacle_count;
-                int neighbor_obstacle_count;
-            };
-
-            std::vector<AcreScore> candidates;
-            const int max_acre_y = Town::HEIGHT - 1;
-
-            for (int ay = 0; ay < max_acre_y; ++ay)
-            {
-                for (int ax = 0; ax < Town::WIDTH; ++ax)
-                {
-                    AcreScore score;
-                    score.pos = {ax, ay};
-                    score.obstacle_count = CountWaterCliffRampTiles(town, ax, ay);
-                    score.neighbor_obstacle_count = 0;
-
-                    for (int dy = -1; dy <= 1; ++dy)
-                    {
-                        for (int dx = -1; dx <= 1; ++dx)
-                        {
-                            if (dx == 0 && dy == 0)
-                                continue;
-                            int nx = ax + dx;
-                            int ny = ay + dy;
-
-                            if (nx >= 0 && nx < Town::WIDTH && ny >= 0 && ny < max_acre_y)
-                            {
-                                score.neighbor_obstacle_count += CountWaterCliffRampTiles(town, nx, ny);
-                            }
-                        }
-                    }
-                    candidates.push_back(score);
-                }
-            }
-
-            std::sort(candidates.begin(), candidates.end(),
-                      [](const AcreScore &a, const AcreScore &b)
-                      {
-                          if (a.obstacle_count != b.obstacle_count)
-                              return a.obstacle_count < b.obstacle_count;
-                          return a.neighbor_obstacle_count < b.neighbor_obstacle_count;
-                      });
-
-            std::vector<glm::ivec2> result;
-            for (const auto &candidate : candidates)
-                result.push_back(candidate.pos);
-            return result;
+            return false;
         }
 
-        bool CanPlacePond(Town &town, const glm::ivec2 &center, int radius, int world_w, int world_h)
+        // 4. Obstacle/Collision Check
+        // We scan slightly wider (using pondMargin) to ensure we don't
+        // touch cliffs, ramps, or existing river water.
+        int check_r = max_radius + config.pondMargin;
+        for (int z = center.y - check_r; z <= center.y + check_r; ++z)
         {
-            const int ocean_start_z = (Town::HEIGHT - 1) * Acre::SIZE;
-            int buffer = radius + 4;
-            if (center.x < buffer || center.x >= world_w - buffer ||
-                center.y < buffer || center.y >= ocean_start_z - buffer)
+            for (int x = center.x - check_r; x <= center.x + check_r; ++x)
             {
-                return false;
-            }
+                TileType type = utils::GetTileTypeSafe(town, x, z);
 
-            int check_radius = radius + 2;
-            for (int z = center.y - check_radius; z <= center.y + check_radius; ++z)
-            {
-                for (int x = center.x - check_radius; x <= center.x + check_radius; ++x)
+                // Ponds should only spawn on grass and avoid existing features
+                if (utils::IsAnyWater(type) ||
+                    type == TileType::CLIFF ||
+                    type == TileType::RAMP)
                 {
-                    TileType type = utils::GetTileTypeSafe(town, x, z);
-                    if (utils::IsAnyWater(type) || type == TileType::CLIFF || type == TileType::RAMP)
-                    {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-
-        void Paint4x4Brush(Town &town, const glm::ivec2 &brush_center, int world_w, int world_h, std::unordered_set<glm::ivec2, utils::PairHash> &painted)
-        {
-            for (int dz = -2; dz <= 1; ++dz)
-            {
-                for (int dx = -2; dx <= 1; ++dx)
-                {
-                    int x = brush_center.x + dx;
-                    int z = brush_center.y + dz;
-
-                    if (x >= 0 && x < world_w && z >= 0 && z < world_h)
-                    {
-                        glm::ivec2 pos{x, z};
-                        auto [a, l] = utils::GetTileCoords(x, z);
-                        auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
-
-                        if (!utils::IsAnyWater(tile.type) && tile.type != TileType::CLIFF && tile.type != TileType::RAMP)
-                        {
-                            tile.type = TileType::POND;
-                            painted.insert(pos);
-                        }
-                    }
+                    return false;
                 }
             }
         }
 
-        void Execute(Town &town, std::mt19937_64 &rng, const TownConfig &config)
+        return true;
+    }
+
+    void Execute(Town &town, std::mt19937_64 &rng, const TownConfig &config)
+    {
+        const int world_w = utils::GetWorldWidth();
+        const int ocean_limit_z = (Town::HEIGHT - 1) * Acre::SIZE;
+
+        bool placed = false;
+        PondBlob pond;
+
+        // 1. HIGH-LEVEL RETRY LOOP
+        // If we can't find a spot for the current pond size, we try again
+        // with a potentially different size/shape up to 5 times.
+        for (int retry = 0; retry < 5; ++retry)
         {
-            const int world_w = Town::WIDTH * Acre::SIZE;
-            const int world_h = Town::HEIGHT * Acre::SIZE;
-            const int ocean_start_z = (Town::HEIGHT - 1) * Acre::SIZE;
+            pond.seed = static_cast<int>(rng());
 
-            std::vector<glm::ivec2> best_acres = GetBestAcresForPond(town);
+            std::uniform_int_distribution<int> r_dist(config.minPondRadius, config.maxPondRadius);
+            int base_r = r_dist(rng);
+            pond.radius_x = static_cast<float>(base_r);
+            pond.radius_z = static_cast<float>(base_r);
 
-            // 1. Setup Radius and Shape
-            std::uniform_int_distribution<int> radius_dist(config.minPondRadius, config.maxPondRadius);
-            std::uniform_int_distribution<int> shape_type(0, 2);
-            std::uniform_int_distribution<int> orientation(0, 1);
-            std::uniform_real_distribution<float> elongation_dist(1.2f, 1.8f);
-            std::uniform_int_distribution<int> offset_dist(-Acre::SIZE / 2, Acre::SIZE / 2);
-
-            int base_radius = radius_dist(rng);
-            int shape = shape_type(rng);
-            float radius_x = static_cast<float>(base_radius);
-            float radius_z = static_cast<float>(base_radius);
-
-            if (shape == 1)
+            if (std::uniform_int_distribution<>(0, 100)(rng) < 33)
             {
-                float elongation = elongation_dist(rng);
-                if (orientation(rng) == 0)
-                    radius_x *= elongation;
+                float elongation = std::uniform_real_distribution<float>(1.2f, 1.6f)(rng);
+                if (std::uniform_int_distribution<>(0, 1)(rng) == 0)
+                    pond.radius_x *= elongation;
                 else
-                    radius_z *= elongation;
+                    pond.radius_z *= elongation;
             }
 
-            int max_radius = static_cast<int>(std::ceil(std::max(radius_x, radius_z)));
-            glm::ivec2 center;
-            int target_elevation = 0;
-            bool valid_location = false;
+            int max_reach = static_cast<int>(std::ceil(std::max(pond.radius_x, pond.radius_z)));
+            int search_padding = max_reach + static_cast<int>(config.pondNoiseStrength) + 1;
 
-            // 2. Aggressive Search
-            for (const auto &acre_pos : best_acres)
+            // 2. Search Strategy (Shuffled Acres)
+            std::vector<glm::ivec2> acre_indices;
+            for (int y = 0; y < Town::HEIGHT - 1; ++y)
+                for (int x = 0; x < Town::WIDTH; ++x)
+                    acre_indices.push_back({x, y});
+
+            std::shuffle(acre_indices.begin(), acre_indices.end(), rng);
+
+            for (auto &acre_pos : acre_indices)
             {
-                int acre_center_x = acre_pos.x * Acre::SIZE + Acre::SIZE / 2;
-                int acre_center_y = acre_pos.y * Acre::SIZE + Acre::SIZE / 2;
-
-                for (int attempt = 0; attempt < 20; ++attempt)
+                for (int attempt = 0; attempt < 15; ++attempt) // Increased local attempts
                 {
-                    center = {acre_center_x + offset_dist(rng), acre_center_y + offset_dist(rng)};
+                    pond.center.x = acre_pos.x * Acre::SIZE + std::uniform_int_distribution<>(2, Acre::SIZE - 3)(rng);
+                    pond.center.y = acre_pos.y * Acre::SIZE + std::uniform_int_distribution<>(2, Acre::SIZE - 3)(rng);
 
-                    // Ensure center is within bounds
-                    if (center.x < max_radius || center.x >= world_w - max_radius ||
-                        center.y < max_radius || center.y >= ocean_start_z - max_radius)
+                    if (pond.center.x < search_padding || pond.center.x >= world_w - search_padding ||
+                        pond.center.y < search_padding || pond.center.y >= ocean_limit_z - search_padding)
                         continue;
 
-                    // Check if center tile is actually grass
-                    auto [ca, cl] = utils::GetTileCoords(center.x, center.y);
-                    auto &center_tile = town.GetAcre(ca.x, ca.y).tiles[cl.y][cl.x];
-
-                    if (center_tile.type == TileType::GRASS)
+                    if (auto *t = utils::GetTileSafe(town, pond.center.x, pond.center.y))
                     {
-                        // Relaxed check: Only check collision with cliffs/water within the radius
-                        if (CanPlacePond(town, center, max_radius, world_w, world_h))
+                        if (t->type == TileType::GRASS && IsAreaClearForPond(town, pond.center, max_reach, config))
                         {
-                            target_elevation = center_tile.elevation;
-                            valid_location = true;
+                            pond.target_elevation = t->elevation;
+                            placed = true;
                             break;
                         }
                     }
                 }
-                if (valid_location)
+                if (placed)
                     break;
             }
 
-            if (!valid_location)
-                return;
+            if (placed)
+                break; // Exit retry loop early if we found a spot
+        }
 
-            // 3. Paint Pass
-            std::unordered_set<glm::ivec2, utils::PairHash> painted;
-            int seed = static_cast<int>(rng());
+        if (!placed)
+            return;
 
-            for (int wz = center.y - max_radius - config.pondMargin; wz <= center.y + max_radius + config.pondMargin; ++wz)
+        // 3. Paint Pass (Logic remains the same as previous version)
+        int max_reach = static_cast<int>(std::ceil(std::max(pond.radius_x, pond.radius_z)));
+        std::unordered_set<glm::ivec2, utils::PairHash> painted;
+        int scan_r = max_reach + config.pondMargin;
+
+        for (int wz = pond.center.y - scan_r; wz <= pond.center.y + scan_r; ++wz)
+        {
+            for (int wx = pond.center.x - scan_r; wx <= pond.center.x + scan_r; ++wx)
             {
-                for (int wx = center.x - max_radius - config.pondMargin; wx <= center.x + max_radius + config.pondMargin; ++wx)
+                if (wz >= ocean_limit_z)
+                    continue;
+
+                if (pond.IsPointInside(wx, wz, config))
                 {
-                    if (wx < 0 || wx >= world_w || wz < 0 || wz >= ocean_start_z)
-                        continue;
-
-                    float noiseX = utils::SmoothNoise(wx * config.pondNoiseScale, wz * config.pondNoiseScale, seed) * config.pondNoiseStrength;
-                    float noiseZ = utils::SmoothNoise(wx * config.pondNoiseScale, wz * config.pondNoiseScale, seed + 7919) * config.pondNoiseStrength;
-
-                    float dx = (static_cast<float>(wx) + noiseX - center.x) / radius_x;
-                    float dz = (static_cast<float>(wz) + noiseZ - center.y) / radius_z;
-
-                    if (dx * dx + dz * dz <= 1.0f)
+                    if (auto *tile = utils::GetTileSafe(town, wx, wz))
                     {
-                        auto [a, l] = utils::GetTileCoords(wx, wz);
-                        auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
-
-                        // Only paint if same elevation and is grass
-                        if (tile.type == TileType::GRASS && tile.elevation == target_elevation)
+                        if (tile->type == TileType::GRASS && tile->elevation == pond.target_elevation)
                         {
-                            tile.type = TileType::POND;
+                            tile->type = TileType::POND;
                             painted.insert({wx, wz});
                         }
                     }
                 }
             }
+        }
 
-            // 4. Cleanup (Capped Neighbors)
-            int effective_min = std::min(config.pondMinNeighbors, 2);
-            std::vector<glm::ivec2> to_revert;
-            for (const auto &pos : painted)
+        // 4. Cleanup & Autotiling
+        // ... (Remaining cleanup and autotile logic remains the same)
+        std::vector<glm::ivec2> to_revert;
+        for (const auto &pos : painted)
+        {
+            int count = 0;
+            for (auto &n : utils::GetNeighbors8(pos.x, pos.y))
             {
-                int neighbors = 0;
-                for (int dz = -1; dz <= 1; ++dz)
-                {
-                    for (int dx = -1; dx <= 1; ++dx)
-                    {
-                        if (dx == 0 && dz == 0)
-                            continue;
-                        if (utils::IsAnyWater(utils::GetTileTypeSafe(town, pos.x + dx, pos.y + dz)))
-                            neighbors++;
-                    }
-                }
-                if (neighbors < effective_min)
-                    to_revert.push_back(pos);
+                if (utils::IsAnyWater(utils::GetTileTypeSafe(town, n.x, n.y)))
+                    count++;
             }
+            if (count < config.pondMinNeighbors)
+                to_revert.push_back(pos);
+        }
 
-            for (const auto &pos : to_revert)
-            {
-                auto [a, l] = utils::GetTileCoords(pos.x, pos.y);
-                town.GetAcre(a.x, a.y).tiles[l.y][l.x].type = TileType::GRASS;
-                painted.erase(pos);
-            }
+        for (auto &p : to_revert)
+        {
+            if (auto *t = utils::GetTileSafe(town, p.x, p.y))
+                t->type = TileType::GRASS;
+            painted.erase(p);
+        }
 
-            // 5. Autotile Pass
-            for (const auto &pos : painted)
+        for (const auto &pos : painted)
+        {
+            if (auto *t = utils::GetTileSafe(town, pos.x, pos.y))
             {
-                auto [a, l] = utils::GetTileCoords(pos.x, pos.y);
-                auto &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
-                if (tile.type == TileType::POND)
-                {
-                    tile.autotileIndex = utils::CalculatePondBlobIndex(town, pos.x, pos.y);
-                }
+                t->autotileIndex = utils::CalculatePondBlobIndex(town, pos.x, pos.y);
             }
         }
     }
