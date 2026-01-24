@@ -71,8 +71,8 @@ namespace cozy::world
                 {
                     for (int x = 0; x < w; ++x)
                     {
-                        int curr_elev = town.GetElevation(x, z);
-                        int next_elev = town.GetElevation(x, z + 1);
+                        int curr_elev = utils::GetElevation(town, x, z);
+                        int next_elev = utils::GetElevation(town, x, z + 1);
 
                         // Look for transition from higher to lower going south (increasing z)
                         if (curr_elev == from_elev && next_elev == to_elev)
@@ -116,8 +116,8 @@ namespace cozy::world
                     if (check_x < 0 || check_x >= w)
                         return 0.0f;
 
-                    if (town.GetElevation(check_x, z_cliff) != from_elev ||
-                        town.GetElevation(check_x, z_cliff + 1) != to_elev)
+                    if (utils::GetElevation(town, check_x, z_cliff) != from_elev ||
+                        utils::GetElevation(town, check_x, z_cliff + 1) != to_elev)
                     {
                         return 0.0f;
                     }
@@ -138,7 +138,7 @@ namespace cozy::world
                         if (rz < 0 || rz >= h)
                             continue;
 
-                        int elev = town.GetElevation(rx, rz);
+                        int elev = utils::GetElevation(town, rx, rz);
 
                         if (rz < z_cliff && elev != from_elev)
                             score -= 15.0f;
@@ -350,7 +350,7 @@ namespace cozy::world
 
         void Execute(
             Town &town,
-            std::mt19937_64 &rng,
+            [[maybe_unused]] std::mt19937_64 &rng,
             const TownConfig &config)
         {
             std::vector<int> elevations;
@@ -362,7 +362,7 @@ namespace cozy::world
             {
                 for (int x = 0; x < w; ++x)
                 {
-                    int elev = town.GetElevation(x, z);
+                    int elev = utils::GetElevation(town, x, z);
                     if (elev > 0 && std::find(elevations.begin(), elevations.end(), elev) == elevations.end())
                     {
                         elevations.push_back(elev);

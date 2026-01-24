@@ -1,44 +1,41 @@
 #pragma once
+
 #include <array>
 #include <vector>
-#include <random>
-#include <glm/glm.hpp>
+#include <memory>
 #include "data/Acre.h"
-#include "data/TownConfig.h"
-#include "../rendering/InstanceData.h"
+
+// Forward declarations to prevent circular dependencies
+namespace cozy::world
+{
+    struct TownConfig;
+}
+namespace cozy::rendering
+{
+    struct TileInstance;
+}
 
 namespace cozy::world
 {
-
-    class GenerationPipeline;
-
     class Town
     {
     public:
+        // Layout Constants
         static constexpr int WIDTH = 5;
-        static constexpr int HEIGHT = 7;
-        static constexpr int BEACH_ACRE_ROW = HEIGHT - 2; // Acre F
+        static constexpr int HEIGHT = 7; // Only 6 render on the town map. 7 (or ACRE G) is for pure ocean acres beyond the normal town map
+        static constexpr int BEACH_ACRE_ROW = HEIGHT - 2;
 
-        Town() = default;
+        Town();
 
-        void Generate(uint64_t seed, const TownConfig &config = {});
+        // Core Actions
+        void Generate(uint64_t seed, const TownConfig &config);
+        void Reset();
 
-        // Debug & Rendering
-        void DebugDump() const;
-        glm::vec3 GetTileColor(const Tile &tile, int y) const;
-        std::vector<rendering::TileInstance> GenerateRenderData() const;
-
-        // Coordinate helpers (very useful for all systems)
-        std::pair<glm::ivec2, glm::ivec2> WorldToTile(glm::vec3 world_pos) const;
-
-        // Low-level access (for generation steps)
+        // Data Accessors
         Acre &GetAcre(int ax, int az) { return m_acres[ax][az]; }
         const Acre &GetAcre(int ax, int az) const { return m_acres[ax][az]; }
-
-        int GetElevation(int wx, int wz) const;
 
     private:
         std::array<std::array<Acre, HEIGHT>, WIDTH> m_acres;
     };
-
 }

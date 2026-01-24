@@ -16,9 +16,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 
-# ------------------------------
-# GLM (header-only math library)
-# ------------------------------
+# --------------------------------------------------------
+# External Dependencies (GLM, GLFW, GLAD, STB)
+# --------------------------------------------------------
+
+# GLM
 FetchContent_Declare(
     glm
     GIT_REPOSITORY https://github.com/g-truc/glm.git
@@ -26,69 +28,65 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
-# ------------------------------
-# GLFW (window and input)
-# ------------------------------
+# GLFW
 FetchContent_Declare(
     glfw
     GIT_REPOSITORY https://github.com/glfw/glfw.git
     GIT_TAG 3.4
 )
-set(GLFW_BUILD_DOCS      OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_EXAMPLES  OFF CACHE BOOL "" FORCE)
-set(GLFW_INSTALL         OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_DOCS    OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS   OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL       OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(glfw)
 
-# ------------------------------
-# GLAD (OpenGL loader)
-# ------------------------------
+# GLAD
 add_library(glad STATIC src/glad.c)
 target_include_directories(glad PUBLIC include)
 
-# ------------------------------
-# STB Image (header-only texture loading)
-# ------------------------------
+# STB Image
 add_library(stb_image INTERFACE)
 target_include_directories(stb_image INTERFACE include)
 
-# ------------------------------
-# Find OpenGL
-# ------------------------------
+# OpenGL
 find_package(OpenGL REQUIRED)
 
-# ------------------------------
-# Main executable
-# ------------------------------
-add_executable(${PROJECT_NAME}
-    # Entry point
-    main.cpp
+# --------------------------------------------------------
+# Main Executable Definition
+# --------------------------------------------------------
 
-    # Utils
+add_executable(${PROJECT_NAME} main.cpp)
+
+# --- Core Systems ---
+target_sources(${PROJECT_NAME} PRIVATE
     src/core/util/FileSystem.cpp
-
-    # Core systems
     src/core/time/TimeSystem.cpp
     src/core/input/InputSystem.cpp
     src/core/camera/FreeCamera.cpp
-
-    # Platform
     src/platform/GlfwWindow.cpp
+)
 
-    # Rendering
+# --- Rendering System ---
+target_sources(${PROJECT_NAME} PRIVATE
     src/rendering/opengl/OpenGLRenderer.cpp
     src/rendering/opengl/OpenGLMesh.cpp
     src/rendering/opengl/OpenGLInstancedMesh.cpp
     src/rendering/opengl/OpenGLShader.cpp
     src/rendering/opengl/OpenGLTexture.cpp
     src/rendering/LightManager.cpp
-
-    # Debug Gizmos
     src/rendering/debug/DebugMesh.cpp
     src/rendering/debug/DebugPrimitives.cpp
     src/rendering/debug/DebugGizmoRenderer.cpp
+)
 
-    # World & DS&A Systems
+# --- World Data & Presentation ---
+target_sources(${PROJECT_NAME} PRIVATE
+    src/world/Town.cpp
+    src/world/presentation/TownPresenter.cpp
+)
+
+# --- World Generation logic ---
+target_sources(${PROJECT_NAME} PRIVATE
     src/world/generation/GenerationPipeline.cpp
     src/world/generation/utils/WorldGenUtils.cpp
     src/world/generation/steps/CliffGenerationStep.cpp
@@ -96,11 +94,14 @@ add_executable(${PROJECT_NAME}
     src/world/generation/steps/RiverGenerationStep.cpp
     src/world/generation/steps/RampGenerationStep.cpp
     src/world/generation/steps/PondGenerationStep.cpp
-    src/world/Town.cpp
-
-    # Application
-    src/app/Engine.cpp
 )
+
+# --- Application ---
+target_sources(${PROJECT_NAME} PRIVATE src/app/Engine.cpp)
+
+# --------------------------------------------------------
+# Compilation & Linking Configuration
+# --------------------------------------------------------
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     glad
@@ -112,27 +113,30 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     include
-    src
-    ${CMAKE_BINARY_DIR}
+    src                # Root-relative includes (e.g., #include "world/Town.h")
+    ${CMAKE_BINARY_DIR} # For generated headers
 )
 
-# ------------------------------
-# Make project version available in code
-# ------------------------------
+# Compiler warnings (Scalability: Catches bugs early)
+if(MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE /W4)
+else()
+    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     COZY_TOWN_GL_VERSION="${PROJECT_VERSION}"
 )
 
-# ------------------------------
-# Shared Directory Variables
-# ------------------------------
+# --------------------------------------------------------
+# Asset Embedding (Shaders & Textures)
+# --------------------------------------------------------
+
 set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders)
 set(TEXTURE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/assets/textures)
 set(CMAKE_UTIL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-# ------------------------------
-# Embed shaders
-# ------------------------------
+# Shader Embedding
 set(EMBEDDED_SHADERS_HEADER ${CMAKE_BINARY_DIR}/shaders_embedded.h)
 add_custom_command(
     OUTPUT ${EMBEDDED_SHADERS_HEADER}
@@ -146,31 +150,19 @@ add_custom_command(
         -D OUTPUT_HEADER=${EMBEDDED_SHADERS_HEADER}
         -P ${CMAKE_UTIL_DIR}/embed_shaders.cmake
     DEPENDS
-        ${SHADER_DIR}/basic.vert
-        ${SHADER_DIR}/basic.frag
-        ${SHADER_DIR}/debug.vert
-        ${SHADER_DIR}/debug.frag
-        ${SHADER_DIR}/instanced.vert
-        ${SHADER_DIR}/instanced.frag                      
+        ${SHADER_DIR}/basic.vert ${SHADER_DIR}/basic.frag
+        ${SHADER_DIR}/debug.vert ${SHADER_DIR}/debug.frag
+        ${SHADER_DIR}/instanced.vert ${SHADER_DIR}/instanced.frag
         ${CMAKE_UTIL_DIR}/embed_shaders.cmake
     COMMENT "Embedding shaders from assets/shaders into C++ header"
 )
 add_custom_target(embed_shaders DEPENDS ${EMBEDDED_SHADERS_HEADER})
 add_dependencies(${PROJECT_NAME} embed_shaders)
 
-# ------------------------------
-# Embed multiple textures (Pluralized System)
-# ------------------------------
+# Texture Embedding
 set(EMBEDDED_TEX_HEADER ${CMAKE_BINARY_DIR}/embedded_textures.h)
 set(EMBEDDED_TEX_CPP ${CMAKE_BINARY_DIR}/embedded_textures.cpp)
-
-# Define the list of textures to be baked into the executable
-set(TEXTURE_FILES 
-    ${TEXTURE_DIR}/placeholder.jpg
-    # Add more textures here as you create them:
-    # ${TEXTURE_DIR}/grass.png
-    # ${TEXTURE_DIR}/dirt.png
-)
+set(TEXTURE_FILES ${TEXTURE_DIR}/placeholder.jpg)
 
 add_custom_command(
     OUTPUT ${EMBEDDED_TEX_HEADER} ${EMBEDDED_TEX_CPP}
@@ -182,11 +174,9 @@ add_custom_command(
     DEPENDS
         ${TEXTURE_FILES}
         ${CMAKE_UTIL_DIR}/embed_textures.cmake
-    COMMENT "Embedding multiple textures from assets/textures into a global registry"
+    COMMENT "Embedding multiple textures into a global registry"
 )
 
 add_custom_target(embed_textures DEPENDS ${EMBEDDED_TEX_HEADER} ${EMBEDDED_TEX_CPP})
 add_dependencies(${PROJECT_NAME} embed_textures)
-
-# Link the generated CPP file containing the hex data
 target_sources(${PROJECT_NAME} PRIVATE ${EMBEDDED_TEX_CPP})

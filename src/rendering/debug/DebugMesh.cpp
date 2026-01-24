@@ -4,7 +4,7 @@
 namespace cozy::rendering::debug
 {
     DebugMesh::DebugMesh(const std::vector<DebugVertex> &vertices)
-        : m_vertexCount(vertices.size())
+        : m_vertexCount(static_cast<uint32_t>(vertices.size()))
     {
         glGenVertexArrays(1, &m_vao);
         glGenBuffers(1, &m_vbo);
@@ -38,7 +38,7 @@ namespace cozy::rendering::debug
 
     void DebugMesh::UpdateVertices(const std::vector<DebugVertex> &vertices)
     {
-        m_vertexCount = vertices.size();
+        m_vertexCount = static_cast<uint32_t>(vertices.size());
         glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
         glBufferData(GL_ARRAY_BUFFER,
                      vertices.size() * sizeof(DebugVertex),

@@ -50,7 +50,7 @@ namespace cozy::world::cliffs
 
     void CliffBoundary::RoundCorners(const std::vector<int> &targets, int connection_point)
     {
-        int width = z_values.size();
+        int width = static_cast<int>(z_values.size());
         int radius = 8;
 
         for (int ax = 0; ax < Town::WIDTH - 1; ++ax)

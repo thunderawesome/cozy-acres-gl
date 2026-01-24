@@ -46,7 +46,7 @@ namespace cozy::world::ponds
 
         // 3. Elevation/Validity Check
         // Using Town's internal logic to ensure the center is on valid terrain
-        if (town.GetElevation(center.x, center.y) == -1)
+        if (utils::GetElevation(town, center.x, center.y) == -1)
         {
             return false;
         }
@@ -198,7 +198,7 @@ namespace cozy::world::ponds
         {
             if (auto *t = utils::GetTileSafe(town, pos.x, pos.y))
             {
-                t->autotileIndex = utils::CalculatePondBlobIndex(town, pos.x, pos.y);
+                t->autotileIndex = static_cast<uint8_t>(utils::CalculatePondBlobIndex(town, pos.x, pos.y));
             }
         }
     }

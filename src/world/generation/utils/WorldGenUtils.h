@@ -1,14 +1,19 @@
 #pragma once
-#include "world/Town.h"
 #include "world/data/Tile.h"
 #include "world/data/Acre.h"
 #include <glm/glm.hpp>
 #include <utility>
 #include <vector>
+#include <functional>
+
+namespace cozy::world
+{
+    class Town; // Forward declaration to avoid circular includes
+}
 
 namespace cozy::world::utils
 {
-    // Hashing for using glm::ivec2 in unordered_sets
+    // --- Hashing ---
     struct PairHash
     {
         std::size_t operator()(const glm::ivec2 &v) const
@@ -18,67 +23,45 @@ namespace cozy::world::utils
     };
 
     // --- Dimension Helpers ---
-    inline int GetWorldWidth() { return Town::WIDTH * Acre::SIZE; }
-    inline int GetWorldHeight() { return Town::HEIGHT * Acre::SIZE; }
+    // Note: We access these via a helper to avoid needing Town.h in this header
+    int GetWorldWidth();
+    int GetWorldHeight();
 
     inline bool IsInBounds(int wx, int wz)
     {
         return wx >= 0 && wx < GetWorldWidth() && wz >= 0 && wz < GetWorldHeight();
     }
 
-    // --- Coordinate Math ---
+    // --- Coordinate Math (Inline for Speed) ---
+    inline std::pair<glm::ivec2, glm::ivec2> WorldToTile(int x, int z)
+    {
+        return {{x / Acre::SIZE, z / Acre::SIZE}, {x % Acre::SIZE, z % Acre::SIZE}};
+    }
+
     inline std::pair<glm::ivec2, glm::ivec2> GetTileCoords(int wx, int wz)
     {
-        return {
-            {wx / Acre::SIZE, wz / Acre::SIZE},
-            {wx % Acre::SIZE, wz % Acre::SIZE}};
+        return WorldToTile(wx, wz);
     }
 
-    // --- Safe Access ---
-    inline TileType GetTileTypeSafe(const Town &town, int wx, int wz)
-    {
-        if (!IsInBounds(wx, wz))
-            return TileType::EMPTY;
-        auto [a, l] = GetTileCoords(wx, wz);
-        return town.GetAcre(a.x, a.y).tiles[l.y][l.x].type;
-    }
-
-    // Returns pointer to allow modification, or nullptr if out of bounds
-    inline Tile *GetTileSafe(Town &town, int wx, int wz)
-    {
-        if (!IsInBounds(wx, wz))
-            return nullptr;
-        auto [a, l] = GetTileCoords(wx, wz);
-        return &town.GetAcre(a.x, a.y).tiles[l.y][l.x];
-    }
-
-    // --- Neighbor Utilities ---
-    // Returns 4-way neighbors (N, S, E, W)
-    std::vector<glm::ivec2> GetNeighbors4(int wx, int wz);
-    // Returns 8-way neighbors
-    std::vector<glm::ivec2> GetNeighbors8(int wx, int wz);
-
+    // --- Logic Helpers ---
     inline bool IsAnyWater(TileType type)
     {
-        return type == TileType::RIVER ||
-               type == TileType::RIVER_MOUTH ||
-               type == TileType::OCEAN ||
-               type == TileType::WATERFALL ||
+        return type == TileType::RIVER || type == TileType::RIVER_MOUTH ||
+               type == TileType::OCEAN || type == TileType::WATERFALL ||
                type == TileType::POND;
     }
 
-    // --- Math & Generation ---
+    // --- Declarations (Implemented in .cpp) ---
+    int GetElevation(const Town &town, int x, int z);
+    TileType GetTileTypeSafe(const Town &town, int wx, int wz);
+    Tile *GetTileSafe(Town &town, int wx, int wz);
+
+    std::vector<glm::ivec2> GetNeighbors4(int wx, int wz);
+    std::vector<glm::ivec2> GetNeighbors8(int wx, int wz);
+
     float SmoothStep(float t);
     float Noise2D(int x, int z, int seed);
     float SmoothNoise(float x, float z, int seed);
 
-    void CreateGrassTeardrop(
-        Town &town,
-        int ocean_acre_row,
-        int center_x,
-        int start_z,
-        int max_width,
-        int depth,
-        float curve_amount,
-        int total_width);
+    void CreateGrassTeardrop(Town &town, int row, int cx, int sz, int mw, int d, float curve, int tw);
 }
