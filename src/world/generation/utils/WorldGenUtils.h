@@ -3,7 +3,8 @@
 #include "world/data/Tile.h"
 #include "world/data/Acre.h"
 #include <glm/glm.hpp>
-#include <utility> // for std::pair
+#include <utility>
+#include <vector>
 
 namespace cozy::world::utils
 {
@@ -16,7 +17,16 @@ namespace cozy::world::utils
         }
     };
 
-    // Math: World X/Z to {Acre Coords, Local Tile Coords}
+    // --- Dimension Helpers ---
+    inline int GetWorldWidth() { return Town::WIDTH * Acre::SIZE; }
+    inline int GetWorldHeight() { return Town::HEIGHT * Acre::SIZE; }
+
+    inline bool IsInBounds(int wx, int wz)
+    {
+        return wx >= 0 && wx < GetWorldWidth() && wz >= 0 && wz < GetWorldHeight();
+    }
+
+    // --- Coordinate Math ---
     inline std::pair<glm::ivec2, glm::ivec2> GetTileCoords(int wx, int wz)
     {
         return {
@@ -24,17 +34,29 @@ namespace cozy::world::utils
             {wx % Acre::SIZE, wz % Acre::SIZE}};
     }
 
+    // --- Safe Access ---
     inline TileType GetTileTypeSafe(const Town &town, int wx, int wz)
     {
-        const int world_w = Town::WIDTH * Acre::SIZE;
-        const int world_h = Town::HEIGHT * Acre::SIZE;
-
-        if (wx < 0 || wx >= world_w || wz < 0 || wz >= world_h)
+        if (!IsInBounds(wx, wz))
             return TileType::EMPTY;
-
         auto [a, l] = GetTileCoords(wx, wz);
         return town.GetAcre(a.x, a.y).tiles[l.y][l.x].type;
     }
+
+    // Returns pointer to allow modification, or nullptr if out of bounds
+    inline Tile *GetTileSafe(Town &town, int wx, int wz)
+    {
+        if (!IsInBounds(wx, wz))
+            return nullptr;
+        auto [a, l] = GetTileCoords(wx, wz);
+        return &town.GetAcre(a.x, a.y).tiles[l.y][l.x];
+    }
+
+    // --- Neighbor Utilities ---
+    // Returns 4-way neighbors (N, S, E, W)
+    std::vector<glm::ivec2> GetNeighbors4(int wx, int wz);
+    // Returns 8-way neighbors
+    std::vector<glm::ivec2> GetNeighbors8(int wx, int wz);
 
     inline bool IsAnyWater(TileType type)
     {
@@ -45,6 +67,7 @@ namespace cozy::world::utils
                type == TileType::POND;
     }
 
+    // --- Math & Generation ---
     float SmoothStep(float t);
     float Noise2D(int x, int z, int seed);
     float SmoothNoise(float x, float z, int seed);

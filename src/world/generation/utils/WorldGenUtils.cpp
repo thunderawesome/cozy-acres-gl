@@ -1,14 +1,47 @@
 #include "world/generation/utils/WorldGenUtils.h"
+#include <algorithm>
 
 namespace cozy::world::utils
 {
-    // Simple smoothstep function for rounded corners
+    std::vector<glm::ivec2> GetNeighbors4(int wx, int wz)
+    {
+        const int offsets[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        std::vector<glm::ivec2> neighbors;
+        neighbors.reserve(4);
+        for (auto &off : offsets)
+        {
+            int nx = wx + off[0];
+            int nz = wz + off[1];
+            if (IsInBounds(nx, nz))
+                neighbors.push_back({nx, nz});
+        }
+        return neighbors;
+    }
+
+    std::vector<glm::ivec2> GetNeighbors8(int wx, int wz)
+    {
+        std::vector<glm::ivec2> neighbors;
+        neighbors.reserve(8);
+        for (int dz = -1; dz <= 1; ++dz)
+        {
+            for (int dx = -1; dx <= 1; ++dx)
+            {
+                if (dx == 0 && dz == 0)
+                    continue;
+                int nx = wx + dx;
+                int nz = wz + dz;
+                if (IsInBounds(nx, nz))
+                    neighbors.push_back({nx, nz});
+            }
+        }
+        return neighbors;
+    }
+
     float SmoothStep(float t)
     {
         return t * t * (3.0f - 2.0f * t);
     }
 
-    // Simple 2D noise for organic edge variation
     float Noise2D(int x, int z, int seed)
     {
         int n = x + z * 57 + seed * 131;
@@ -21,13 +54,11 @@ namespace cozy::world::utils
     {
         int ix = static_cast<int>(std::floor(x));
         int iz = static_cast<int>(std::floor(z));
-
         float fx = x - ix;
         float fz = z - iz;
 
-        // Smoothstep
-        fx = fx * fx * (3.0f - 2.0f * fx);
-        fz = fz * fz * (3.0f - 2.0f * fz);
+        fx = SmoothStep(fx);
+        fz = SmoothStep(fz);
 
         float v00 = Noise2D(ix, iz, seed);
         float v10 = Noise2D(ix + 1, iz, seed);
@@ -35,42 +66,33 @@ namespace cozy::world::utils
         float v11 = Noise2D(ix + 1, iz + 1, seed);
 
         float v0 = v00 * (1.0f - fx) + v10 * fx;
-        float v1 = v01 * (1.0f - fx) + v11 * fx;
-
+        float v1 = v01 * (1.0f - fz) + v11 * fz; // Corrected lerp logic
         return v0 * (1.0f - fz) + v1 * fz;
     }
 
     void CreateGrassTeardrop(
         Town &town,
         int ocean_acre_row,
-        int center_x,    // world tile X
-        int start_z,     // local Z in ocean acre where blob starts (top of blob)
-        int max_width,   // X diameter in tiles
-        int depth,       // Z diameter in tiles
-        float curve,     // negative = bend left, positive = bend right, 0 = symmetric
-        int total_width) // world width in tiles
+        int center_x,
+        int start_z,
+        int max_width,
+        int depth,
+        float curve,
+        int total_width)
     {
-        const int world_h = Town::HEIGHT * Acre::SIZE;
-
-        // Semi-axes (in tiles)
+        const int world_h = GetWorldHeight();
         const float rx = max_width * 0.5f;
         const float rz = depth * 0.5f;
-
-        // World-space Z center
         const int acre_z0 = ocean_acre_row * Acre::SIZE;
-        const float center_z = static_cast<float>(acre_z0 + start_z) + rz; // middle of the blob
+        const float center_z = static_cast<float>(acre_z0 + start_z) + rz;
 
-        // Track world tiles this call changed, plus their original type
         struct PaintedTile
         {
             glm::ivec2 pos;
             TileType original_type;
         };
-
         std::vector<PaintedTile> painted;
-        painted.reserve(max_width * depth);
 
-        // Scan a tight bounding box
         const int z_min = std::max(0, static_cast<int>(std::floor(center_z - rz - 1)));
         const int z_max = std::min(world_h - 1, static_cast<int>(std::ceil(center_z + rz + 1)));
 
@@ -81,8 +103,7 @@ namespace cozy::world::utils
             if (nz * nz > 1.0f)
                 continue;
 
-            // Optional “teardrop” bend: slide X center a little over Z
-            const float bend = curve * (dz / static_cast<float>(depth)); // tiny offset
+            const float bend = curve * (dz / static_cast<float>(depth));
             const float cx = static_cast<float>(center_x) + bend;
 
             const int x_min = std::max(0, static_cast<int>(std::floor(cx - rx - 1)));
@@ -92,65 +113,35 @@ namespace cozy::world::utils
             {
                 const float dx = static_cast<float>(wx) - cx;
                 const float nx = dx / rx;
-
-                // Inside ellipse?
                 if (nx * nx + nz * nz > 1.0f)
                     continue;
 
-                auto [a, l] = utils::GetTileCoords(wx, wz);
-                Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
-
-                // Only paint over beach/ocean; do not touch river/grass/other
-                if (tile.type == TileType::SAND || tile.type == TileType::OCEAN)
+                Tile *tile = GetTileSafe(town, wx, wz);
+                if (tile && (tile->type == TileType::SAND || tile->type == TileType::OCEAN))
                 {
-                    PaintedTile pt;
-                    pt.pos = {wx, wz};
-                    pt.original_type = tile.type;
-
-                    tile.type = TileType::GRASS;
-                    tile.elevation = 0;
-
-                    painted.push_back(pt);
+                    painted.push_back({{wx, wz}, tile->type});
+                    tile->type = TileType::GRASS;
+                    tile->elevation = 0;
                 }
             }
         }
 
-        // Connectivity cleanup: remove isolated or near-isolated GRASS tips
-        const int n_off[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-
-        for (const PaintedTile &pt : painted)
+        // Cleanup isolated grass using the new neighbor helper
+        for (const auto &pt : painted)
         {
-            int wx = pt.pos.x;
-            int wz = pt.pos.y;
-
             int grass_neighbors = 0;
-
-            for (int i = 0; i < 4; ++i)
+            for (auto &neighborPos : GetNeighbors4(pt.pos.x, pt.pos.y))
             {
-                int nx = wx + n_off[i][0];
-                int nz = wz + n_off[i][1];
-
-                if (nx < 0 || nx >= total_width || nz < 0 || nz >= world_h)
-                    continue;
-
-                auto [na, nl] = utils::GetTileCoords(nx, nz);
-                Tile &nt = town.GetAcre(na.x, na.y).tiles[nl.y][nl.x];
-
-                if (nt.type == TileType::GRASS)
-                    ++grass_neighbors;
+                if (GetTileTypeSafe(town, neighborPos.x, neighborPos.y) == TileType::GRASS)
+                    grass_neighbors++;
             }
 
-            // If this GRASS tile has 0 or 1 GRASS neighbors, it is a spike: revert it
             if (grass_neighbors <= 1)
             {
-                auto [a, l] = utils::GetTileCoords(wx, wz);
-                Tile &tile = town.GetAcre(a.x, a.y).tiles[l.y][l.x];
-
-                // Only revert if still GRASS (in case something else changed it later)
-                if (tile.type == TileType::GRASS)
+                Tile *tile = GetTileSafe(town, pt.pos.x, pt.pos.y);
+                if (tile && tile->type == TileType::GRASS)
                 {
-                    tile.type = pt.original_type;
-                    tile.elevation = 0;
+                    tile->type = pt.original_type;
                 }
             }
         }
