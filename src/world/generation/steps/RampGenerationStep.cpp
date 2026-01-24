@@ -33,7 +33,7 @@ namespace cozy::world
             // This ensures we determine "West" vs "East" based on the actual river flow.
             int GetRiverCenterX(const Town &town, int z)
             {
-                const int w = Town::WIDTH * Acre::SIZE;
+                const int w = utils::GetWorldWidth();
                 long total_x = 0;
                 int count = 0;
 

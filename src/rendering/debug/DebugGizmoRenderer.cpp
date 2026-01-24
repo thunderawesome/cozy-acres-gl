@@ -1,9 +1,8 @@
-// src/rendering/debug/DebugGizmoRenderer.cpp
 #include "rendering/debug/DebugGizmoRenderer.h"
 #include "rendering/debug/DebugMesh.h"
 #include "rendering/debug/DebugPrimitives.h"
 #include "rendering/LightManager.h"
-#include "rendering/Light.h" // Ensure the full struct definitions are visible
+#include "rendering/Light.h"
 #include "core/graphics/IGpuResource.h"
 #include "core/camera/ICamera.h"
 #include <glm/gtc/matrix_transform.hpp>
@@ -37,12 +36,11 @@ namespace cozy::rendering::debug
 
         shader.Bind();
 
-        // 1. Set global camera state once
+        // TODO: Pass aspect ratio from outside
         float aspect = 1280.0f / 720.0f;
         shader.SetMat4("u_View", camera.GetViewMatrix());
         shader.SetMat4("u_Projection", camera.GetProjectionMatrix(aspect));
 
-        // 2. Call helpers without passing the redundant camera
         RenderDirectionalLight(lights.GetDirectionalLight(), shader);
 
         for (const auto &light : lights.GetPointLights())

@@ -83,7 +83,6 @@ namespace cozy::world::utils
             {
                 int final_x = cx + dx + offset;
 
-                // Now using 'tw' to skip unnecessary work
                 if (final_x < 0 || final_x >= tw)
                     continue;
 

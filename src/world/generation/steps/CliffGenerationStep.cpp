@@ -10,7 +10,7 @@
 
 namespace cozy::world::cliffs
 {
-    // --- CliffBoundary Logic (Composition) ---
+    // --- CliffBoundary Logic ---
 
     void CliffBoundary::Generate(const TownConfig &config, std::mt19937_64 &rng, const std::vector<int> &targets)
     {
@@ -72,7 +72,7 @@ namespace cozy::world::cliffs
         }
     }
 
-    // --- Mutation Helpers (Single Responsibility) ---
+    // --- Mutation Helpers ---
 
     void ApplyElevations(Town &town, const CliffBoundary &mid, const CliffBoundary &high, bool threeTiers)
     {
@@ -119,7 +119,7 @@ namespace cozy::world::cliffs
         }
     }
 
-    // --- Main Orchestration (Dependency Injection via Town/Config) ---
+    // --- Main Orchestration ---
 
     void Execute(Town &town, std::mt19937_64 &rng, const TownConfig &config)
     {

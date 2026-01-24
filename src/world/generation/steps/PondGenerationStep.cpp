@@ -22,11 +22,9 @@ namespace cozy::world::ponds
         return (dx * dx + dz * dz <= 1.0f);
     }
 
-    // PondGenerationStep.cpp
-
     bool IsAreaClearForPond(Town &town, glm::ivec2 center, int max_radius, const TownConfig &config)
     {
-        const int world_w = Town::WIDTH * Acre::SIZE;
+        const int world_w = utils::GetWorldWidth();
         // Ponds should stay above the beach/ocean row (Row F)
         const int ocean_limit_z = (Town::HEIGHT - 1) * Acre::SIZE;
 
@@ -64,6 +62,7 @@ namespace cozy::world::ponds
                 // Ponds should only spawn on grass and avoid existing features
                 if (utils::IsAnyWater(type) ||
                     type == TileType::CLIFF ||
+                    type == TileType::SAND ||
                     type == TileType::RAMP)
                 {
                     return false;
@@ -146,7 +145,7 @@ namespace cozy::world::ponds
         if (!placed)
             return;
 
-        // 3. Paint Pass (Logic remains the same as previous version)
+        // 3. Paint Pass
         int max_reach = static_cast<int>(std::ceil(std::max(pond.radius_x, pond.radius_z)));
         std::unordered_set<glm::ivec2, utils::PairHash> painted;
         int scan_r = max_reach + config.pondMargin;
@@ -173,7 +172,6 @@ namespace cozy::world::ponds
         }
 
         // 4. Cleanup & Autotiling
-        // ... (Remaining cleanup and autotile logic remains the same)
         std::vector<glm::ivec2> to_revert;
         for (const auto &pos : painted)
         {
